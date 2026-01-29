@@ -308,6 +308,398 @@ Biblioteca para calendario interactivo utilizado en el módulo de eventos y segu
 
 ---
 
+## 🎨 Proceso del Prototipado Inicial
+
+### Metodología Design-First
+
+El desarrollo de PromptVault siguió un enfoque **Figma → Código**, garantizando consistencia visual antes de la implementación.
+
+#### 🔄 Flujo de Diseño
+
+```mermaid
+Investigación UX → Wireframes → Prototipo Figma → Validación → Desarrollo
+```
+
+| Fase | Herramienta | Entregable |
+|------|------------|------------|
+| **1. Wireframing** | Figma (baja fidelidad) | Estructura de páginas y navegación |
+| **2. UI Design** | Figma (alta fidelidad) | Sistema de diseño completo |
+| **3. Prototyping** | Figma Interactive | Flujos navegables con transiciones |
+| **4. Handoff** | Figma Dev Mode | Especificaciones CSS y assets |
+
+#### 🎯 Validación Pre-Desarrollo
+
+**Páginas Prototipadas:**
+- ✅ Dashboard principal con métricas
+- ✅ CRUD de prompts (crear/editar/listar)
+- ✅ Vista detalle con versionado
+- ✅ Sistema de calificación y comentarios
+- ✅ Chat con IA (multi-provider)
+- ✅ Panel de administración
+
+**Elementos Interactivos:**
+- Navegación entre vistas
+- Estados de formularios (vacío/error/éxito)
+- Modales y dropdowns
+- Responsive breakpoints (mobile/tablet/desktop)
+
+---
+
+## 🎨 Elementos Visuales del Sistema
+
+### Sistema de Diseño PromptVault
+
+#### 🎨 Paleta de Colores
+
+```css
+/* Colores Primarios */
+--blue-500: #3B82F6;    /* Acciones principales */
+--purple-600: #9333EA;  /* Gradientes y énfasis */
+--gray-900: #111827;    /* Textos principales */
+
+/* Colores Semánticos */
+--success: #10B981;     /* Operaciones exitosas */
+--warning: #F59E0B;     /* Alertas */
+--error: #EF4444;       /* Errores y validaciones */
+--info: #3B82F6;        /* Información contextual */
+
+/* Neutrales */
+--gray-50 → --gray-900  /* Escala completa TailwindCSS */
+```
+
+**Aplicación:**
+- **Botones CTA**: Gradiente blue-500 → purple-600
+- **Navegación**: Gray-800 con hover blue-500
+- **Badges**: Colores semánticos según tipo
+
+#### 🔤 Tipografía
+
+| Elemento | Font Family | Tamaño | Peso |
+|----------|------------|--------|------|
+| **Headings (h1-h3)** | Inter | 2xl-4xl | 700 |
+| **Body** | Inter | base | 400 |
+| **Code** | JetBrains Mono | sm | 500 |
+| **Labels** | Inter | sm | 500 |
+
+```html
+<!-- Ejemplo de jerarquía -->
+<h1 class="text-4xl font-bold text-gray-900">Título Principal</h1>
+<h2 class="text-2xl font-semibold text-gray-800">Subtítulo</h2>
+<p class="text-base text-gray-600">Párrafo de contenido</p>
+```
+
+#### 🔲 Iconografía
+
+**Sistema:** Heroicons 2.0 (línea y sólido)
+
+```html
+<!-- Ejemplos de iconos en uso -->
+<svg class="w-5 h-5"><!-- icon-sparkles (IA) --></svg>
+<svg class="w-5 h-5"><!-- icon-folder (Prompts) --></svg>
+<svg class="w-5 h-5"><!-- icon-star (Calificación) --></svg>
+```
+
+**Tamaños Estándar:**
+- **Botones**: 5×5 (20px)
+- **Navegación**: 6×6 (24px)
+- **Hero Icons**: 8×8 (32px)
+
+#### 📐 Espaciado y Layout
+
+**Sistema de Grid:**
+```html
+<!-- Layout principal -->
+<div class="grid grid-cols-12 gap-6">
+    <aside class="col-span-3"><!-- Sidebar --></aside>
+    <main class="col-span-9"><!-- Contenido --></main>
+</div>
+```
+
+**Espaciado Consistente:**
+- **Padding interno**: `p-4`, `p-6` (componentes)
+- **Margen entre secciones**: `my-8`, `my-12`
+- **Gap en grids**: `gap-4`, `gap-6`
+
+#### 🎭 Componentes Reutilizables
+
+| Componente | Descripción | Archivo |
+|-----------|-------------|---------|
+| **x-form-label** | Label con asterisco requerido | `components/form-label.blade.php` |
+| **x-form-select** | Select estilizado con Tailwind | `components/form-select.blade.php` |
+| **x-button** | Botón con variantes (primary/secondary) | `components/button.blade.php` |
+| **x-modal** | Modal Alpine.js reutilizable | `components/modal.blade.php` |
+| **x-alert** | Alertas semánticas | `components/alert.blade.php` |
+
+---
+
+## 💻 Traducción del Prototipo a Código
+
+### De Figma a Laravel
+
+#### 🔀 Proceso de Conversión
+
+```
+Figma Design → Export Assets → Blade Components → TailwindCSS → Alpine.js
+```
+
+**Ejemplo Práctico:**
+
+**1️⃣ Diseño en Figma:**
+- Card de prompt con sombra
+- Padding: 24px
+- Border radius: 12px
+- Shadow: 0px 4px 12px rgba(0,0,0,0.1)
+
+**2️⃣ Traducción a Tailwind:**
+```html
+<div class="bg-white rounded-xl shadow-lg p-6">
+    <!-- Contenido del prompt -->
+</div>
+```
+
+**3️⃣ Componente Blade:**
+```php
+<!-- resources/views/components/prompt-card.blade.php -->
+@props(['prompt'])
+
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow p-6">
+    <h3 class="text-xl font-bold text-gray-900">{{ $prompt->titulo }}</h3>
+    <p class="text-gray-600 mt-2">{{ Str::limit($prompt->contenido, 150) }}</p>
+    
+    <div class="flex items-center gap-4 mt-4">
+        <x-badge color="blue">{{ $prompt->etiquetas->count() }} tags</x-badge>
+        <span class="text-sm text-gray-500">{{ $prompt->created_at->diffForHumans() }}</span>
+    </div>
+</div>
+```
+
+---
+
+### 7.6.1 HTML - Estructura Semántica
+
+#### 🏗️ Arquitectura de Vistas
+
+**Jerarquía Blade:**
+
+```
+layouts/
+├── app.blade.php           # Layout maestro (header, nav, footer)
+├── admin.blade.php         # Layout admin con sidebar
+└── guest.blade.php         # Layout público (login/register)
+
+prompts/
+├── index.blade.php         # Listado (tabla/grid)
+├── show.blade.php          # Detalle individual
+├── create.blade.php        # Formulario creación
+└── edit.blade.php          # Formulario edición
+```
+
+#### 📄 Estructura HTML Semántica
+
+```html
+<!-- resources/views/prompts/show.blade.php -->
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="text-2xl font-semibold">{{ $prompt->titulo }}</h2>
+    </x-slot>
+
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <!-- Contenido principal -->
+            <article class="bg-white rounded-lg shadow-md p-8">
+                <header>
+                    <h1 class="text-3xl font-bold">{{ $prompt->titulo }}</h1>
+                    <div class="flex items-center gap-4 mt-2">
+                        <time datetime="{{ $prompt->created_at }}">
+                            {{ $prompt->created_at->format('d/m/Y') }}
+                        </time>
+                        <span>Por {{ $prompt->user->name }}</span>
+                    </div>
+                </header>
+
+                <section class="prose max-w-none mt-6">
+                    {!! nl2br(e($prompt->contenido)) !!}
+                </section>
+
+                <!-- Etiquetas -->
+                <footer class="flex flex-wrap gap-2 mt-6">
+                    @foreach($prompt->etiquetas as $etiqueta)
+                        <a href="{{ route('prompts.index', ['tag' => $etiqueta->slug]) }}"
+                           class="badge badge-primary">
+                            #{{ $etiqueta->nombre }}
+                        </a>
+                    @endforeach
+                </footer>
+            </article>
+
+            <!-- Calificaciones -->
+            <section class="mt-8">
+                <h3 class="text-xl font-semibold mb-4">Calificaciones</h3>
+                @include('prompts.partials.rating-widget')
+            </section>
+
+            <!-- Comentarios -->
+            <section class="mt-8">
+                <h3 class="text-xl font-semibold mb-4">Comentarios</h3>
+                @include('prompts.partials.comments')
+            </section>
+        </div>
+    </div>
+</x-app-layout>
+```
+
+**Elementos Semánticos Clave:**
+- `<article>`: Contenido principal del prompt
+- `<header>/<footer>`: Metadatos y etiquetas
+- `<time>`: Fechas formateadas correctamente
+- `<section>`: Bloques funcionales (comentarios, calificaciones)
+- `<nav>`: Navegación entre versiones
+
+---
+
+### 7.6.2 CSS - TailwindCSS como Única Fuente
+
+#### ⚡ Zero Custom CSS
+
+PromptVault utiliza **100% TailwindCSS utility classes**, eliminando archivos CSS personalizados.
+
+#### 🎨 Configuración Tailwind
+
+```javascript
+// tailwind.config.js
+export default {
+    content: [
+        './resources/**/*.blade.php',
+        './resources/**/*.js',
+    ],
+    theme: {
+        extend: {
+            colors: {
+                primary: {
+                    50: '#eff6ff',
+                    500: '#3b82f6',
+                    900: '#1e3a8a',
+                },
+            },
+            fontFamily: {
+                sans: ['Inter', 'sans-serif'],
+                mono: ['JetBrains Mono', 'monospace'],
+            },
+        },
+    },
+    plugins: [
+        require('@tailwindcss/forms'),
+    ],
+}
+```
+
+#### 📱 Responsividad Mobile-First
+
+```html
+<!-- Card responsive -->
+<div class="
+    grid 
+    grid-cols-1           /* Mobile: 1 columna */
+    sm:grid-cols-2        /* Tablet: 2 columnas */
+    lg:grid-cols-3        /* Desktop: 3 columnas */
+    gap-4 sm:gap-6
+">
+    @foreach($prompts as $prompt)
+        <x-prompt-card :prompt="$prompt" />
+    @endforeach
+</div>
+
+<!-- Navegación responsive -->
+<nav class="
+    flex flex-col        /* Mobile: vertical */
+    lg:flex-row          /* Desktop: horizontal */
+    gap-4 lg:gap-8
+">
+    <a href="#" class="nav-link">Dashboard</a>
+    <a href="#" class="nav-link">Prompts</a>
+</nav>
+```
+
+#### 🎭 Estados Interactivos
+
+```html
+<!-- Botón con todos los estados -->
+<button class="
+    px-6 py-3
+    bg-gradient-to-r from-blue-500 to-purple-600
+    text-white font-semibold rounded-lg
+    
+    hover:scale-105           /* Hover: escala */
+    active:scale-95           /* Click: presión */
+    focus:ring-4 focus:ring-blue-300  /* Foco: anillo */
+    disabled:opacity-50 disabled:cursor-not-allowed  /* Deshabilitado */
+    
+    transition-all duration-200
+">
+    Guardar Prompt
+</button>
+```
+
+#### 🌙 Dark Mode Support
+
+```html
+<!-- Componente con modo oscuro -->
+<div class="
+    bg-white dark:bg-gray-800
+    text-gray-900 dark:text-gray-100
+    border border-gray-200 dark:border-gray-700
+">
+    <!-- Contenido adaptable -->
+</div>
+```
+
+#### 📊 Utilidades Personalizadas
+
+```css
+/* resources/css/app.css - Solo @directives Tailwind */
+@import 'tailwindcss';
+
+@layer components {
+    .btn-primary {
+        @apply px-4 py-2 bg-blue-500 text-white rounded-lg 
+               hover:bg-blue-600 transition-colors;
+    }
+    
+    .card {
+        @apply bg-white rounded-xl shadow-lg p-6;
+    }
+}
+```
+
+#### 🚀 Optimización de Build
+
+**Antes (CSS tradicional):** ~250KB  
+**Después (Tailwind purgado):** ~8KB
+
+```javascript
+// vite.config.js - PurgeCSS automático
+export default defineConfig({
+    plugins: [
+        laravel({
+            input: ['resources/css/app.css', 'resources/js/app.js'],
+            refresh: true,
+        }),
+    ],
+    build: {
+        cssMinify: true,  // Minificación CSS
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    vendor: ['alpinejs'],
+                },
+            },
+        },
+    },
+});
+```
+
+---
+
 ## 📦 Instalación
 
 ### Requisitos Previos
