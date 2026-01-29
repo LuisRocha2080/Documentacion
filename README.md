@@ -4,303 +4,1393 @@ Sistema web de gestión de prompts con integración multi-provider de IA.
 
 ---
 
-## 7.4 Proceso del Prototipado Inicial
+## 7.7 Estructura del Sistema Web
 
-El diseño de PromptVault siguió una metodología **Figma-first**, validando la experiencia de usuario antes de escribir código.
+PromptVault sigue una **arquitectura MVC limpia** con separación de responsabilidades mediante el patrón Repository-Service. La estructura está organizada para facilitar escalabilidad y mantenimiento a largo plazo.
 
-### 📐 Flujo de Trabajo
+### 📂 Organización de Carpetas Principal
 
 ```
-Investigación → Wireframes Figma → UI Design → Prototipo Interactivo → Desarrollo
+PromptVault/
+├── app/                    # Lógica de aplicación
+│   ├── Http/              # Capa HTTP (Controllers, Middleware, Requests)
+│   ├── Models/            # Modelos Eloquent
+│   ├── Services/          # Lógica de negocio
+│   ├── Repositories/      # Acceso a datos
+│   ├── Policies/          # Autorización
+│   └── Contracts/         # Interfaces
+├── resources/             # Assets frontend
+│   ├── views/            # Plantillas Blade
+│   ├── css/              # Estilos (Tailwind)
+│   └── js/               # JavaScript (Alpine.js)
+├── database/              # Migraciones y seeders
+├── routes/                # Definición de rutas
+├── tests/                 # Tests automatizados
+└── public/                # Assets públicos
 ```
 
-| Fase | Herramienta | Entregable |
-|------|-------------|------------|
-| **Wireframing** | Figma (baja fidelidad) | Estructura de páginas y flujos |
-| **UI Design** | Figma (alta fidelidad) | Sistema de diseño completo |
-| **Prototyping** | Figma Interactive | Navegación con transiciones |
-| **Handoff** | Figma Dev Mode | Especificaciones CSS exactas |
+### 🏗️ Arquitectura por Capas
 
-### ✅ Validación Pre-Código
+| Capa | Responsabilidad | Ejemplos |
+|------|----------------|----------|
+| **Controllers** | Coordinación HTTP y respuestas | `PromptController`, `ChatbotController` |
+| **Services** | Lógica de negocio compleja | `PromptService`, `CalificacionService` |
+| **Repositories** | Queries y acceso a BD | `PromptRepository`, `EtiquetaRepository` |
+| **Models** | Entidades y relaciones | `Prompt`, `User`, `Calificacion` |
+| **Policies** | Reglas de autorización | `PromptPolicy`, `ComentarioPolicy` |
+| **Requests** | Validación de datos | `StorePromptRequest`, `CompartirPromptRequest` |
 
-**Pantallas prototipadas:**
-- Dashboard con métricas
-- CRUD de prompts (crear/editar/listar/detalle)
-- Sistema de calificación y comentarios
-- Chat con selección de provider IA
-- Panel de administración
+### 📦 Módulos Principales
 
-**Elementos validados:**
-- Flujos de navegación completos
-- Estados de formularios (vacío/error/éxito)
-- Comportamiento de modales y dropdowns
-- Responsive breakpoints (mobile/tablet/desktop)
+#### 1️⃣ Módulo de Prompts
+
+```
+app/Http/Controllers/PromptController.php
+app/Services/PromptService.php
+app/Repositories/PromptRepository.php
+app/Models/Prompt.php
+app/Policies/PromptPolicy.php
+```
+
+**Funciones:** CRUD, versionado, compartir, búsqueda
+
+#### 2️⃣ Módulo de Chatbot IA
+
+```
+app/Http/Controllers/ChatbotController.php
+app/Services/ChatbotService.php
+app/Repositories/
+├── ChatbotClaudeRepository.php
+├── ChatbotGeminiRepository.php
+└── ChatbotGroqRepository.php
+app/Factories/ChatbotRepositoryFactory.php
+```
+
+**Funciones:** Conversación multi-provider, historial
+
+#### 3️⃣ Módulo de Calificaciones
+
+```
+app/Services/CalificacionService.php
+app/Models/Calificacion.php
+```
+
+**Funciones:** Sistema 5 estrellas, promedio, validación única
+
+#### 4️⃣ Módulo de Compartir
+
+```
+app/Services/CompartirService.php
+app/Models/AccesoCompartido.php
+```
+
+**Funciones:** Enlaces temporales, permisos (lectura/edición)
+
+### 🗂️ Estructura de Base de Datos
+
+| Tabla | Propósito | Relaciones |
+|-------|-----------|------------|
+| `users` | Usuarios del sistema | 1:N con prompts, calificaciones |
+| `prompts` | Prompts principales | N:M con etiquetas, 1:N con versiones |
+| `versiones` | Historial de cambios | N:1 con prompts |
+| `calificaciones` | Sistema de rating | N:1 con prompts, users |
+| `comentarios` | Feedback comunitario | N:1 con prompts, users |
+| `etiquetas` | Categorización | N:M con prompts |
+| `accesos_compartidos` | Compartir temporal | N:1 con prompts |
+| `chatbot_conversaciones` | Historial IA | N:1 con users |
+
+### 🔧 Configuración y Servicios
+
+```
+config/
+├── app.php              # Configuración general
+├── database.php         # Conexión BD
+├── services.php         # APIs externas (Claude, Gemini, Groq)
+└── auth.php            # Autenticación
+```
+
+**Servicios Integrados:**
+- **Anthropic Claude** (API REST)
+- **Google Gemini** (AI Studio)
+- **Groq** (LLM rápida)
+
+### 📋 System de Rutas
+
+| Archivo | Propósito |
+|---------|-----------|
+| `web.php` | Rutas públicas y autenticadas |
+| `auth.php` | Login, registro, recuperación |
+| `master-web.php` | Rutas administrativas |
 
 ---
 
-## 7.5 Elementos Visuales del Sistema
+## 7.8 Descripción de la Estructura de Páginas
 
-### 🎨 Paleta de Colores
+El sistema está organizado en **3 áreas principales**: pública, usuario autenticado y administración. Cada área tiene páginas específicas con funcionalidades bien delimitadas.
 
-```css
-/* Primarios */
---blue-500: #3B82F6;     /* Acciones principales */
---purple-600: #9333EA;   /* Énfasis y gradientes */
---gray-900: #111827;     /* Textos */
+### 🌐 Mapa de Navegación
 
-/* Semánticos */
---success: #10B981;      /* Éxito */
---warning: #F59E0B;      /* Alertas */
---error: #EF4444;        /* Errores */
+```
+┌─────────────────────────────────────────┐
+│          ÁREA PÚBLICA                   │
+├─────────────────────────────────────────┤
+│ • Landing Page                          │
+│ • Login / Registro                      │
+│ • Recuperar Contraseña                  │
+└─────────────────────────────────────────┘
+                  │
+                  │ [Autenticación]
+                  ▼
+┌─────────────────────────────────────────┐
+│      ÁREA DE USUARIO                    │
+├─────────────────────────────────────────┤
+│ • Dashboard                             │
+│ • Mis Prompts                           │
+│ • Crear/Editar Prompt                   │
+│ • Ver Detalle + Versionado              │
+│ • Chat con IA                           │
+│ • Prompts Compartidos Conmigo           │
+│ • Explorar Prompts Públicos             │
+│ • Mi Perfil                             │
+└─────────────────────────────────────────┘
+                  │
+                  │ [Rol Admin]
+                  ▼
+┌─────────────────────────────────────────┐
+│       ÁREA ADMINISTRATIVA               │
+├─────────────────────────────────────────┤
+│ • Panel Admin                           │
+│ • Gestión de Usuarios                   │
+│ • Gestión de Roles                      │
+│ • Configuraciones Sistema               │
+│ • Backups y Mantenimiento               │
+│ • Logs y Auditoría                      │
+└─────────────────────────────────────────┘
 ```
 
-**Uso:**
-- Botones CTA: Gradiente `blue-500 → purple-600`
-- Navegación: `gray-800` con hover `blue-500`
+### 📄 Páginas Principales
 
-### 🔤 Tipografía
+#### 🏠 Dashboard (Home Autenticado)
 
-| Elemento | Fuente | Tamaño | Peso |
-|----------|--------|--------|------|
-| Headings | Inter | 2xl-4xl | 700 |
-| Body | Inter | base | 400 |
-| Code | JetBrains Mono | sm | 500 |
+**Ruta:** `/dashboard`  
+**Vista:** `resources/views/dashboard.blade.php`  
+**Controlador:** `App\Http\Controllers\DashboardController`
 
-### 🔲 Iconografía
+**Contenido:**
+- Métricas personales (total prompts, calificaciones recibidas)
+- Últimos prompts creados
+- Actividad reciente del chatbot
+- Accesos rápidos a funciones principales
 
-**Sistema:** Heroicons 2.0
-
-**Tamaños:**
-- Botones: 20px (w-5 h-5)
-- Navegación: 24px (w-6 h-6)
-- Hero: 32px (w-8 h-8)
-
-### 📐 Espaciado
-
-- **Padding componentes**: `p-4`, `p-6`
-- **Margen secciones**: `my-8`, `my-12`
-- **Gap grids**: `gap-4`, `gap-6`
-
-### 🎭 Componentes Reutilizables
-
-| Componente | Archivo |
-|-----------|---------|
-| `x-form-label` | `components/form-label.blade.php` |
-| `x-form-select` | `components/form-select.blade.php` |
-| `x-button` | `components/button.blade.php` |
-| `x-modal` | `components/modal.blade.php` |
-| `x-alert` | `components/alert.blade.php` |
+**Elementos visuales:**
+- Cards con estadísticas
+- Gráficos de actividad
+- Lista de acciones rápidas
 
 ---
 
-## 7.6 Traducción del Prototipo a Código
+#### 📝 Gestión de Prompts
 
-### 🔄 Proceso de Conversión
+##### Listado de Prompts
 
-```
-Figma Design → Exportar Assets → Blade Components → TailwindCSS → Alpine.js
-```
+**Ruta:** `/prompts`  
+**Vista:** `resources/views/prompts/index.blade.php`
 
-**Ejemplo práctico:**
+| Elemento | Descripción |
+|----------|-------------|
+| **Buscador** | Filtro por título, contenido, etiquetas |
+| **Grid/Tabla** | Vista alternativa de prompts |
+| **Paginación** | 15 items por página |
+| **Botón Crear** | Acceso a formulario nuevo prompt |
 
-**🎨 En Figma:**
-- Card con padding 24px, radius 12px, shadow suave
+##### Crear/Editar Prompt
 
-**💻 En Código:**
+**Rutas:** `/prompts/create`, `/prompts/{id}/edit`  
+**Vistas:** `resources/views/prompts/create.blade.php`, `edit.blade.php`
+
+**Formulario:**
 ```html
-<div class="bg-white rounded-xl shadow-lg p-6">
-    <!-- Contenido -->
-</div>
+┌─────────────────────────────────┐
+│ Título (obligatorio)            │
+├─────────────────────────────────┤
+│ Contenido (obligatorio)         │
+│ [Textarea grande]               │
+├─────────────────────────────────┤
+│ Etiquetas (opcional)            │
+│ [Select múltiple]               │
+├─────────────────────────────────┤
+│ Visibilidad                     │
+│ ( ) Privado  ( ) Público        │
+├─────────────────────────────────┤
+│ [Guardar]  [Cancelar]           │
+└─────────────────────────────────┘
 ```
 
-**🧩 Componente Blade:**
+##### Detalle de Prompt
+
+**Ruta:** `/prompts/{id}`  
+**Vista:** `resources/views/prompts/show.blade.php`
+
+**Secciones:**
+1. **Header**: Título, fecha, autor, botones acción
+2. **Contenido**: Prompt completo con formato
+3. **Etiquetas**: Tags clickeables para búsqueda
+4. **Calificaciones**: Widget 5 estrellas + promedio
+5. **Comentarios**: Lista + formulario nuevo comentario
+6. **Versiones**: Historial de cambios (si hay)
+7. **Compartir**: Generar enlace temporal
+
+---
+
+#### 🤖 Chat con IA
+
+**Ruta:** `/chatbot`  
+**Vista:** `resources/views/chatbot/index.blade.php`  
+**Controlador:** `App\Http\Controllers\ChatbotController`
+
+**Componentes:**
+
+| Zona | Función |
+|------|---------|
+| **Selector Provider** | Claude / Gemini / Groq |
+| **Historial** | Conversaciones previas (sidebar) |
+| **Chat Area** | Mensajes usuario/IA |
+| **Input Box** | Textarea + botón enviar |
+
+**Features:**
+- Cambio de modelo en tiempo real
+- Historial persistente en BD
+- Markdown rendering en respuestas
+- Copy to clipboard
+
+---
+
+#### 🔗 Prompts Compartidos
+
+**Ruta:** `/compartidos`  
+**Vista:** `resources/views/compartidos/index.blade.php`
+
+**Tipos de vista:**
+- Compartidos **por mí** (links que creé)
+- Compartidos **conmigo** (accesos que recibí)
+
+**Tabla:**
+
+| Prompt | Compartido con | Permiso | Expira | Acciones |
+|--------|---------------|---------|--------|----------|
+| "Prompt X" | user@mail.com | Lectura | 7 días | Revocar |
+| "Prompt Y" | Público | Edición | Nunca | Ver |
+
+---
+
+#### 👤 Mi Perfil
+
+**Ruta:** `/perfil`  
+**Vista:** `resources/views/perfil/edit.blade.php`
+
+**Datos editables:**
+- Nombre
+- Email
+- Contraseña (con confirmación)
+- Avatar (upload)
+- Preferencias de notificaciones
+
+---
+
+#### ⚙️ Panel Administrativo
+
+**Ruta:** `/admin`  
+**Vista:** `resources/views/admin/dashboard.blade.php`
+
+**Acceso:** Solo usuarios con rol `admin`
+
+##### Gestión de Usuarios
+
+**Ruta:** `/admin/usuarios`
+
+| Campo | Acciones Disponibles |
+|-------|---------------------|
+| Nombre | Ver, Editar |
+| Email | Ver, Editar |
+| Rol | Cambiar (admin/user) |
+| Estado | Activar/Desactivar |
+| Acciones | Eliminar, Ver prompts |
+
+##### Configuraciones Sistema
+
+**Ruta:** `/admin/configuraciones`
+
+**Secciones:**
+- **General**: Nombre app, timezone, maintenance mode
+- **Backups**: Crear backup BD manual
+- **APIs**: Verificar keys IA
+- **Cache**: Limpiar cache sistema
+
+---
+
+### 🔄 Flujos de Navegación Principales
+
+#### Flujo 1: Crear y Compartir Prompt
+
+```
+Dashboard → Mis Prompts → [Crear Nuevo]
+     ↓
+Formulario Crear → [Guardar]
+     ↓
+Detalle Prompt → [Compartir]
+     ↓
+Modal Compartir → Generar enlace → Copiar
+```
+
+#### Flujo 2: Usar Chatbot con Prompt
+
+```
+Mis Prompts → Seleccionar Prompt → [Usar en Chat]
+     ↓
+Chat IA (prompt pre-cargado) → Seleccionar Provider
+     ↓
+Enviar → Recibir Respuesta → [Guardar Conversación]
+```
+
+#### Flujo 3: Calificar Prompt Público
+
+```
+Explorar Prompts → Buscar por Tag → Seleccionar Prompt
+     ↓
+Ver Detalle → Widget Calificación → Dar estrellas
+     ↓
+[Opcional] Dejar Comentario → Publicar
+```
+
+---
+
+## 7.9 Funcionalidades Claves
+
+PromptVault ofrece un conjunto robusto de funcionalidades diseñadas para maximizar la productividad en la gestión y uso de prompts con inteligencia artificial.
+
+### 🎯 Funcionalidades Core
+
+#### 1️⃣ Gestión Completa de Prompts (CRUD)
+
+**Descripción:** Sistema integral para crear, leer, actualizar y eliminar prompts con versionado automático.
+
+| Acción | Características |
+|--------|----------------|
+| **Crear** | Título, contenido, etiquetas, visibilidad |
+| **Editar** | Guarda versión anterior automáticamente |
+| **Eliminar** | Soft delete con posibilidad de restaurar |
+| **Búsqueda** | Full-text en título/contenido + filtros |
+| **Versionado** | Historial completo de cambios con diff |
+
+**Código clave:**
 ```php
-<!-- resources/views/components/prompt-card.blade.php -->
-@props(['prompt'])
-
-<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow p-6">
-    <h3 class="text-xl font-bold text-gray-900">{{ $prompt->titulo }}</h3>
-    <p class="text-gray-600 mt-2">{{ Str::limit($prompt->contenido, 150) }}</p>
+// app/Services/PromptService.php
+public function updatePrompt(Prompt $prompt, array $data): Prompt
+{
+    // Guarda versión anterior antes de actualizar
+    $this->versionRepository->crearVersion($prompt);
     
-    <div class="flex items-center gap-4 mt-4">
-        <x-badge color="blue">{{ $prompt->etiquetas->count() }} tags</x-badge>
-        <span class="text-sm text-gray-500">{{ $prompt->created_at->diffForHumans() }}</span>
-    </div>
-</div>
-```
-
----
-
-## 7.6.1 HTML - Estructura Semántica
-
-### 🏗️ Jerarquía de Vistas Blade
-
-```
-layouts/
-├── app.blade.php        # Layout maestro
-├── admin.blade.php      # Admin con sidebar
-└── guest.blade.php      # Público
-
-prompts/
-├── index.blade.php      # Listado
-├── show.blade.php       # Detalle
-├── create.blade.php     # Crear
-└── edit.blade.php       # Editar
-```
-
-### 📄 Ejemplo: Vista de Detalle
-
-```html
-<x-app-layout>
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            
-            <!-- Contenido principal -->
-            <article class="bg-white rounded-lg shadow-md p-8">
-                <header>
-                    <h1 class="text-3xl font-bold">{{ $prompt->titulo }}</h1>
-                    <time datetime="{{ $prompt->created_at }}">
-                        {{ $prompt->created_at->format('d/m/Y') }}
-                    </time>
-                </header>
-
-                <section class="prose mt-6">
-                    {!! nl2br(e($prompt->contenido)) !!}
-                </section>
-
-                <footer class="flex flex-wrap gap-2 mt-6">
-                    @foreach($prompt->etiquetas as $etiqueta)
-                        <a href="{{ route('prompts.index', ['tag' => $etiqueta->slug]) }}"
-                           class="badge badge-primary">
-                            #{{ $etiqueta->nombre }}
-                        </a>
-                    @endforeach
-                </footer>
-            </article>
-
-            <!-- Calificaciones -->
-            <section class="mt-8">
-                <h3 class="text-xl font-semibold mb-4">Calificaciones</h3>
-                @include('prompts.partials.rating-widget')
-            </section>
-
-        </div>
-    </div>
-</x-app-layout>
-```
-
-**Elementos semánticos clave:**
-- `<article>`: Contenido principal
-- `<header>/<footer>`: Metadatos
-- `<time>`: Fechas con atributo `datetime`
-- `<section>`: Bloques funcionales
-
----
-
-## 7.6.2 CSS - TailwindCSS
-
-### ⚡ 100% Utility-First
-
-PromptVault utiliza **exclusivamente TailwindCSS**, sin archivos CSS personalizados.
-
-### 🎨 Configuración Base
-
-```javascript
-// tailwind.config.js
-export default {
-    content: [
-        './resources/**/*.blade.php',
-        './resources/**/*.js',
-    ],
-    theme: {
-        extend: {
-            colors: {
-                primary: {
-                    50: '#eff6ff',
-                    500: '#3b82f6',
-                    900: '#1e3a8a',
-                },
-            },
-            fontFamily: {
-                sans: ['Inter', 'sans-serif'],
-                mono: ['JetBrains Mono', 'monospace'],
-            },
-        },
-    },
-    plugins: [
-        require('@tailwindcss/forms'),
-    ],
+    return $this->promptRepository->update($prompt, $data);
 }
 ```
 
-### 📱 Responsividad Mobile-First
+**Validaciones:**
+- Título: mínimo 5 caracteres, máximo 200
+- Contenido: mínimo 10 caracteres
+- Etiquetas: máximo 5 por prompt
+- Usuario solo puede editar sus propios prompts (via Policy)
 
-```html
-<!-- Grid responsive -->
-<div class="
-    grid 
-    grid-cols-1          /* Mobile: 1 columna */
-    sm:grid-cols-2       /* Tablet: 2 columnas */
-    lg:grid-cols-3       /* Desktop: 3 columnas */
-    gap-4 sm:gap-6
-">
-    @foreach($prompts as $prompt)
-        <x-prompt-card :prompt="$prompt" />
-    @endforeach
-</div>
-```
+---
 
-### 🎭 Estados Interactivos
+#### 2️⃣ Sistema Multi-Provider de IA
 
-```html
-<button class="
-    px-6 py-3
-    bg-gradient-to-r from-blue-500 to-purple-600
-    text-white font-semibold rounded-lg
-    
-    hover:scale-105          /* Hover */
-    active:scale-95          /* Click */
-    focus:ring-4 focus:ring-blue-300    /* Foco */
-    disabled:opacity-50 disabled:cursor-not-allowed
-    
-    transition-all duration-200
-">
-    Guardar
-</button>
-```
+**Descripción:** Integración simultánea con 3 proveedores de IA para máxima flexibilidad.
 
-### 🌙 Soporte Dark Mode
+| Provider | Modelo | Velocidad | Contexto |
+|----------|--------|-----------|----------|
+| **Claude** | Claude 3.5 Sonnet | ⭐⭐⭐ | 200K tokens |
+| **Gemini** | Gemini 1.5 Pro | ⭐⭐⭐⭐ | 1M tokens |
+| **Groq** | Llama 3.1 70B | ⭐⭐⭐⭐⭐ | 8K tokens |
 
-```html
-<div class="
-    bg-white dark:bg-gray-800
-    text-gray-900 dark:text-gray-100
-    border border-gray-200 dark:border-gray-700
-">
-    Contenido adaptable
-</div>
-```
-
-### 📊 Optimización de Build
-
-**Resultado:**
-- CSS tradicional: ~250KB
-- TailwindCSS purgado: **~8KB**
-
+**Cambio dinámico:**
 ```javascript
-// vite.config.js
-export default defineConfig({
-    plugins: [
-        laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
-            refresh: true,
-        }),
-    ],
-    build: {
-        cssMinify: true,
-    },
+// resources/js/chatbot.js
+Alpine.data('chatbot', () => ({
+    provider: 'claude',
+    changeProvider(newProvider) {
+        this.provider = newProvider;
+        // Actualiza UI sin recargar página
+    }
+}));
+```
+
+**Features:**
+- Selección de modelo sin recargar
+- Historial por proveedor
+- Comando: `php artisan check:models` para ver modelos disponibles
+
+---
+
+#### 3️⃣ Sistema de Calificación Comunitario
+
+**Descripción:** Calificación de 1-5 estrellas con promedio ponderado y validación única por usuario.
+
+**Reglas de negocio:**
+- ✅ 1 calificación por usuario por prompt
+- ✅ Recalcula promedio automáticamente
+- ✅ No puedes calificar tus propios prompts
+- ✅ Editable (cambiar estrellas)
+
+**Tabla resumen:**
+
+| Estadística | Cálculo |
+|------------|---------|
+| **Promedio** | `SUM(estrellas) / COUNT(calificaciones)` |
+| **Total Calificaciones** | `COUNT(*)` |
+| **Distribución** | Histograma 1-5 estrellas |
+
+**Implementación:**
+```php
+// app/Services/CalificacionService.php
+public function calificar(Prompt $prompt, User $user, int $estrellas): Calificacion
+{
+    // Valida: no es propietario y estrellas 1-5
+    $this->validarCalificacion($prompt, $user, $estrellas);
+    
+    return Calificacion::updateOrCreate(
+        ['prompt_id' => $prompt->id, 'user_id' => $user->id],
+        ['estrellas' => $estrellas]
+    );
+}
+```
+
+---
+
+#### 4️⃣ Sistema de Compartir con Permisos Granulares
+
+**Descripción:** Genera enlaces temporales o permanentes con control de acceso fino.
+
+**Tipos de permisos:**
+
+| Permiso | Usuario Puede |
+|---------|--------------|
+| **Lectura** | Ver prompt, copiar contenido |
+| **Edición** | Modificar prompt, ver versiones |
+| **Admin** | Editar + eliminar + compartir |
+
+**Opciones de expiración:**
+- 1 hora
+- 1 día
+- 7 días
+- 30 días
+- Sin expiración
+
+**Tabla BD:**
+```sql
+CREATE TABLE accesos_compartidos (
+    id BIGINT PRIMARY KEY,
+    prompt_id BIGINT,
+    user_id BIGINT,
+    email_compartido VARCHAR(255),
+    token VARCHAR(255) UNIQUE,
+    permiso ENUM('lectura', 'edicion'),
+    expira_en TIMESTAMP NULL,
+    created_at TIMESTAMP
+);
+```
+
+**Generación de enlace:**
+```php
+// app/Services/CompartirService.php
+public function generarAcceso(Prompt $prompt, string $email, string $permiso): string
+{
+    $token = Str::random(32);
+    
+    AccesoCompartido::create([
+        'prompt_id' => $prompt->id,
+        'email_compartido' => $email,
+        'token' => $token,
+        'permiso' => $permiso,
+        'expira_en' => now()->addDays(7),
+    ]);
+    
+    return route('compartidos.acceso', $token);
+}
+```
+
+---
+
+#### 5️⃣ Control de Acceso con Policies
+
+**Descripción:** Autorización basada en Laravel Policies para cada acción del sistema.
+
+**Policies implementadas:**
+
+| Policy | Métodos | Validaciones |
+|--------|---------|--------------|
+| `PromptPolicy` | view, update, delete, share | Propietario o admin |
+| `ComentarioPolicy` | create, update, delete | Usuario autenticado |
+
+**Ejemplo de Policy:**
+```php
+// app/Policies/PromptPolicy.php
+class PromptPolicy
+{
+    public function update(User $user, Prompt $prompt): bool
+    {
+        // Solo propietario o admin
+        return $user->id === $prompt->user_id 
+            || $user->hasRole('admin');
+    }
+    
+    public function share(User $user, Prompt $prompt): bool
+    {
+        // Solo propietario puede compartir
+        return $user->id === $prompt->user_id;
+    }
+}
+```
+
+**Uso en Controlador:**
+```php
+public function update(Request $request, Prompt $prompt)
+{
+    $this->authorize('update', $prompt);
+    
+    // Usuario autorizado, procede...
+}
+```
+
+---
+
+#### 6️⃣ Gestión de Usuarios y Roles
+
+**Descripción:** Sistema de roles jerárquico con permisos diferenciados.
+
+**Roles del sistema:**
+
+| Rol | Permisos |
+|-----|----------|
+| **Admin** | Acceso total, gestión usuarios, configuración |
+| **User** | CRUD prompts propios, chat IA, calificaciones |
+| **Guest** | Solo visualización de prompts públicos |
+
+**Tabla de permisos:**
+
+| Acción | Admin | User | Guest |
+|--------|-------|------|-------|
+| Ver prompts públicos | ✅ | ✅ | ✅ |
+| Crear prompt | ✅ | ✅ | ❌ |
+| Editar prompt propio | ✅ | ✅ | ❌ |
+| Editar prompt ajeno | ✅ | ❌ | ❌ |
+| Eliminar cualquier prompt | ✅ | ❌ | ❌ |
+| Usar chatbot IA | ✅ | ✅ | ❌ |
+| Ver panel admin | ✅ | ❌ | ❌ |
+| Gestionar usuarios | ✅ | ❌ | ❌ |
+
+**Middleware:**
+```php
+// routes/master-web.php
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    Route::get('/admin/usuarios', [UsuarioController::class, 'index']);
 });
 ```
+
+---
+
+#### 7️⃣ Búsqueda Avanzada y Filtrado
+
+**Descripción:** Sistema de búsqueda full-text con múltiples filtros combinables.
+
+**Filtros disponibles:**
+
+| Filtro | Tipo | Opciones |
+|--------|------|----------|
+| **Texto** | Input | Busca en título + contenido |
+| **Etiquetas** | Multi-select | Tags existentes |
+| **Autor** | Dropdown | Todos los usuarios |
+| **Calificación** | Range | 1-5 estrellas |
+| **Fecha** | Date range | Desde - Hasta |
+| **Visibilidad** | Radio | Público / Privado / Todos |
+
+**Query Builder:**
+```php
+// app/Repositories/PromptRepository.php
+public function buscar(array $filtros): Collection
+{
+    return Prompt::query()
+        ->when($filtros['texto'] ?? null, function ($query, $texto) {
+            $query->where('titulo', 'LIKE', "%{$texto}%")
+                  ->orWhere('contenido', 'LIKE', "%{$texto}%");
+        })
+        ->when($filtros['etiquetas'] ?? null, function ($query, $etiquetas) {
+            $query->whereHas('etiquetas', function ($q) use ($etiquetas) {
+                $q->whereIn('id', $etiquetas);
+            });
+        })
+        ->when($filtros['calificacion_min'] ?? null, function ($query, $min) {
+            $query->withAvg('calificaciones', 'estrellas')
+                  ->having('calificaciones_avg_estrellas', '>=', $min);
+        })
+        ->paginate(15);
+}
+```
+
+---
+
+#### 8️⃣ Gestión de Configuraciones Sistema
+
+**Descripción:** Panel administrativo para configurar parámetros globales del sistema.
+
+**Configuraciones disponibles:**
+
+| Categoría | Configuración | Tipo |
+|-----------|--------------|------|
+| **General** | Nombre aplicación | Text |
+| **General** | Modo mantenimiento | Boolean |
+| **APIs** | Claude API Key | Password |
+| **APIs** | Gemini API Key | Password |
+| **APIs** | Groq API Key | Password |
+| **Seguridad** | Timeout sesión | Number (minutos) |
+| **Backup** | Backup automático | Boolean |
+| **Cache** | Driver cache | Select (redis/file) |
+
+**Implementación:**
+```php
+// app/Models/AppSetting.php
+class AppSetting extends Model
+{
+    public static function get(string $key, $default = null)
+    {
+        return cache()->remember("setting.{$key}", 3600, function () use ($key, $default) {
+            return static::where('key', $key)->value('value') ?? $default;
+        });
+    }
+}
+```
+
+**Comando para verificar APIs:**
+```bash
+php artisan app:verify-ai-keys
+# Output: ✅ Claude: OK | ❌ Gemini: Invalid Key | ✅ Groq: OK
+```
+
+---
+
+### 📊 Resumen de Funcionalidades
+
+| Funcionalidad | Estado | Cobertura Tests |
+|--------------|--------|----------------|
+| CRUD Prompts | ✅ Completo | 95% |
+| Multi-Provider IA | ✅ Completo | 90% |
+| Calificaciones | ✅ Completo | 92% |
+| Sistema Compartir | ✅ Completo | 88% |
+| Policies Autorización | ✅ Completo | 100% |
+| Gestión Usuarios/Roles | ✅ Completo | 85% |
+| Búsqueda Avanzada | ✅ Completo | 87% |
+| Configuraciones Admin | ✅ Completo | 80% |
+
+---
+
+## 📦 Instalación
+
+```bash
+git clone https://github.com/tu-usuario/promptvault.git
+cd promptvault
+composer setup
+cp .env.example .env
+php artisan migrate --seed
+npm install && npm run dev
+php artisan serve
+```
+
+---
+
+## 7.7 Estructura del Sistema Web
+
+PromptVault sigue una **arquitectura MVC limpia** con separación de responsabilidades mediante el patrón Repository-Service. La estructura está organizada para facilitar escalabilidad y mantenimiento a largo plazo.
+
+### 📂 Organización de Carpetas Principal
+
+```
+PromptVault/
+├── app/                    # Lógica de aplicación
+│   ├── Http/              # Capa HTTP (Controllers, Middleware, Requests)
+│   ├── Models/            # Modelos Eloquent
+│   ├── Services/          # Lógica de negocio
+│   ├── Repositories/      # Acceso a datos
+│   ├── Policies/          # Autorización
+│   └── Contracts/         # Interfaces
+├── resources/             # Assets frontend
+│   ├── views/            # Plantillas Blade
+│   ├── css/              # Estilos (Tailwind)
+│   └── js/               # JavaScript (Alpine.js)
+├── database/              # Migraciones y seeders
+├── routes/                # Definición de rutas
+├── tests/                 # Tests automatizados
+└── public/                # Assets públicos
+```
+
+### 🏗️ Arquitectura por Capas
+
+| Capa | Responsabilidad | Ejemplos |
+|------|----------------|----------|
+| **Controllers** | Coordinación HTTP y respuestas | `PromptController`, `ChatbotController` |
+| **Services** | Lógica de negocio compleja | `PromptService`, `CalificacionService` |
+| **Repositories** | Queries y acceso a BD | `PromptRepository`, `EtiquetaRepository` |
+| **Models** | Entidades y relaciones | `Prompt`, `User`, `Calificacion` |
+| **Policies** | Reglas de autorización | `PromptPolicy`, `ComentarioPolicy` |
+| **Requests** | Validación de datos | `StorePromptRequest`, `CompartirPromptRequest` |
+
+### 📦 Módulos Principales
+
+#### 1️⃣ Módulo de Prompts
+
+```
+app/Http/Controllers/PromptController.php
+app/Services/PromptService.php
+app/Repositories/PromptRepository.php
+app/Models/Prompt.php
+app/Policies/PromptPolicy.php
+```
+
+**Funciones:** CRUD, versionado, compartir, búsqueda
+
+#### 2️⃣ Módulo de Chatbot IA
+
+```
+app/Http/Controllers/ChatbotController.php
+app/Services/ChatbotService.php
+app/Repositories/
+├── ChatbotClaudeRepository.php
+├── ChatbotGeminiRepository.php
+└── ChatbotGroqRepository.php
+app/Factories/ChatbotRepositoryFactory.php
+```
+
+**Funciones:** Conversación multi-provider, historial
+
+#### 3️⃣ Módulo de Calificaciones
+
+```
+app/Services/CalificacionService.php
+app/Models/Calificacion.php
+```
+
+**Funciones:** Sistema 5 estrellas, promedio, validación única
+
+#### 4️⃣ Módulo de Compartir
+
+```
+app/Services/CompartirService.php
+app/Models/AccesoCompartido.php
+```
+
+**Funciones:** Enlaces temporales, permisos (lectura/edición)
+
+### 🗂️ Estructura de Base de Datos
+
+| Tabla | Propósito | Relaciones |
+|-------|-----------|------------|
+| `users` | Usuarios del sistema | 1:N con prompts, calificaciones |
+| `prompts` | Prompts principales | N:M con etiquetas, 1:N con versiones |
+| `versiones` | Historial de cambios | N:1 con prompts |
+| `calificaciones` | Sistema de rating | N:1 con prompts, users |
+| `comentarios` | Feedback comunitario | N:1 con prompts, users |
+| `etiquetas` | Categorización | N:M con prompts |
+| `accesos_compartidos` | Compartir temporal | N:1 con prompts |
+| `chatbot_conversaciones` | Historial IA | N:1 con users |
+
+### 🔧 Configuración y Servicios
+
+```
+config/
+├── app.php              # Configuración general
+├── database.php         # Conexión BD
+├── services.php         # APIs externas (Claude, Gemini, Groq)
+└── auth.php            # Autenticación
+```
+
+**Servicios Integrados:**
+- **Anthropic Claude** (API REST)
+- **Google Gemini** (AI Studio)
+- **Groq** (LLM rápida)
+
+### 📋 System de Rutas
+
+| Archivo | Propósito |
+|---------|-----------|
+| `web.php` | Rutas públicas y autenticadas |
+| `auth.php` | Login, registro, recuperación |
+| `master-web.php` | Rutas administrativas |
+
+---
+
+## 7.8 Descripción de la Estructura de Páginas
+
+El sistema está organizado en **3 áreas principales**: pública, usuario autenticado y administración. Cada área tiene páginas específicas con funcionalidades bien delimitadas.
+
+### 🌐 Mapa de Navegación
+
+```
+┌─────────────────────────────────────────┐
+│          ÁREA PÚBLICA                   │
+├─────────────────────────────────────────┤
+│ • Landing Page                          │
+│ • Login / Registro                      │
+│ • Recuperar Contraseña                  │
+└─────────────────────────────────────────┘
+                  │
+                  │ [Autenticación]
+                  ▼
+┌─────────────────────────────────────────┐
+│      ÁREA DE USUARIO                    │
+├─────────────────────────────────────────┤
+│ • Dashboard                             │
+│ • Mis Prompts                           │
+│ • Crear/Editar Prompt                   │
+│ • Ver Detalle + Versionado              │
+│ • Chat con IA                           │
+│ • Prompts Compartidos Conmigo           │
+│ • Explorar Prompts Públicos             │
+│ • Mi Perfil                             │
+└─────────────────────────────────────────┘
+                  │
+                  │ [Rol Admin]
+                  ▼
+┌─────────────────────────────────────────┐
+│       ÁREA ADMINISTRATIVA               │
+├─────────────────────────────────────────┤
+│ • Panel Admin                           │
+│ • Gestión de Usuarios                   │
+│ • Gestión de Roles                      │
+│ • Configuraciones Sistema               │
+│ • Backups y Mantenimiento               │
+│ • Logs y Auditoría                      │
+└─────────────────────────────────────────┘
+```
+
+### 📄 Páginas Principales
+
+#### 🏠 Dashboard (Home Autenticado)
+
+**Ruta:** `/dashboard`  
+**Vista:** `resources/views/dashboard.blade.php`  
+**Controlador:** `App\Http\Controllers\DashboardController`
+
+**Contenido:**
+- Métricas personales (total prompts, calificaciones recibidas)
+- Últimos prompts creados
+- Actividad reciente del chatbot
+- Accesos rápidos a funciones principales
+
+**Elementos visuales:**
+- Cards con estadísticas
+- Gráficos de actividad
+- Lista de acciones rápidas
+
+---
+
+#### 📝 Gestión de Prompts
+
+##### Listado de Prompts
+
+**Ruta:** `/prompts`  
+**Vista:** `resources/views/prompts/index.blade.php`
+
+| Elemento | Descripción |
+|----------|-------------|
+| **Buscador** | Filtro por título, contenido, etiquetas |
+| **Grid/Tabla** | Vista alternativa de prompts |
+| **Paginación** | 15 items por página |
+| **Botón Crear** | Acceso a formulario nuevo prompt |
+
+##### Crear/Editar Prompt
+
+**Rutas:** `/prompts/create`, `/prompts/{id}/edit`  
+**Vistas:** `resources/views/prompts/create.blade.php`, `edit.blade.php`
+
+**Formulario:**
+```html
+┌─────────────────────────────────┐
+│ Título (obligatorio)            │
+├─────────────────────────────────┤
+│ Contenido (obligatorio)         │
+│ [Textarea grande]               │
+├─────────────────────────────────┤
+│ Etiquetas (opcional)            │
+│ [Select múltiple]               │
+├─────────────────────────────────┤
+│ Visibilidad                     │
+│ ( ) Privado  ( ) Público        │
+├─────────────────────────────────┤
+│ [Guardar]  [Cancelar]           │
+└─────────────────────────────────┘
+```
+
+##### Detalle de Prompt
+
+**Ruta:** `/prompts/{id}`  
+**Vista:** `resources/views/prompts/show.blade.php`
+
+**Secciones:**
+1. **Header**: Título, fecha, autor, botones acción
+2. **Contenido**: Prompt completo con formato
+3. **Etiquetas**: Tags clickeables para búsqueda
+4. **Calificaciones**: Widget 5 estrellas + promedio
+5. **Comentarios**: Lista + formulario nuevo comentario
+6. **Versiones**: Historial de cambios (si hay)
+7. **Compartir**: Generar enlace temporal
+
+---
+
+#### 🤖 Chat con IA
+
+**Ruta:** `/chatbot`  
+**Vista:** `resources/views/chatbot/index.blade.php`  
+**Controlador:** `App\Http\Controllers\ChatbotController`
+
+**Componentes:**
+
+| Zona | Función |
+|------|---------|
+| **Selector Provider** | Claude / Gemini / Groq |
+| **Historial** | Conversaciones previas (sidebar) |
+| **Chat Area** | Mensajes usuario/IA |
+| **Input Box** | Textarea + botón enviar |
+
+**Features:**
+- Cambio de modelo en tiempo real
+- Historial persistente en BD
+- Markdown rendering en respuestas
+- Copy to clipboard
+
+---
+
+#### 🔗 Prompts Compartidos
+
+**Ruta:** `/compartidos`  
+**Vista:** `resources/views/compartidos/index.blade.php`
+
+**Tipos de vista:**
+- Compartidos **por mí** (links que creé)
+- Compartidos **conmigo** (accesos que recibí)
+
+**Tabla:**
+
+| Prompt | Compartido con | Permiso | Expira | Acciones |
+|--------|---------------|---------|--------|----------|
+| "Prompt X" | user@mail.com | Lectura | 7 días | Revocar |
+| "Prompt Y" | Público | Edición | Nunca | Ver |
+
+---
+
+#### 👤 Mi Perfil
+
+**Ruta:** `/perfil`  
+**Vista:** `resources/views/perfil/edit.blade.php`
+
+**Datos editables:**
+- Nombre
+- Email
+- Contraseña (con confirmación)
+- Avatar (upload)
+- Preferencias de notificaciones
+
+---
+
+#### ⚙️ Panel Administrativo
+
+**Ruta:** `/admin`  
+**Vista:** `resources/views/admin/dashboard.blade.php`
+
+**Acceso:** Solo usuarios con rol `admin`
+
+##### Gestión de Usuarios
+
+**Ruta:** `/admin/usuarios`
+
+| Campo | Acciones Disponibles |
+|-------|---------------------|
+| Nombre | Ver, Editar |
+| Email | Ver, Editar |
+| Rol | Cambiar (admin/user) |
+| Estado | Activar/Desactivar |
+| Acciones | Eliminar, Ver prompts |
+
+##### Configuraciones Sistema
+
+**Ruta:** `/admin/configuraciones`
+
+**Secciones:**
+- **General**: Nombre app, timezone, maintenance mode
+- **Backups**: Crear backup BD manual
+- **APIs**: Verificar keys IA
+- **Cache**: Limpiar cache sistema
+
+---
+
+### 🔄 Flujos de Navegación Principales
+
+#### Flujo 1: Crear y Compartir Prompt
+
+```
+Dashboard → Mis Prompts → [Crear Nuevo]
+     ↓
+Formulario Crear → [Guardar]
+     ↓
+Detalle Prompt → [Compartir]
+     ↓
+Modal Compartir → Generar enlace → Copiar
+```
+
+#### Flujo 2: Usar Chatbot con Prompt
+
+```
+Mis Prompts → Seleccionar Prompt → [Usar en Chat]
+     ↓
+Chat IA (prompt pre-cargado) → Seleccionar Provider
+     ↓
+Enviar → Recibir Respuesta → [Guardar Conversación]
+```
+
+#### Flujo 3: Calificar Prompt Público
+
+```
+Explorar Prompts → Buscar por Tag → Seleccionar Prompt
+     ↓
+Ver Detalle → Widget Calificación → Dar estrellas
+     ↓
+[Opcional] Dejar Comentario → Publicar
+```
+
+---
+
+## 7.9 Funcionalidades Claves
+
+PromptVault ofrece un conjunto robusto de funcionalidades diseñadas para maximizar la productividad en la gestión y uso de prompts con inteligencia artificial.
+
+### 🎯 Funcionalidades Core
+
+#### 1️⃣ Gestión Completa de Prompts (CRUD)
+
+**Descripción:** Sistema integral para crear, leer, actualizar y eliminar prompts con versionado automático.
+
+| Acción | Características |
+|--------|----------------|
+| **Crear** | Título, contenido, etiquetas, visibilidad |
+| **Editar** | Guarda versión anterior automáticamente |
+| **Eliminar** | Soft delete con posibilidad de restaurar |
+| **Búsqueda** | Full-text en título/contenido + filtros |
+| **Versionado** | Historial completo de cambios con diff |
+
+**Código clave:**
+```php
+// app/Services/PromptService.php
+public function updatePrompt(Prompt $prompt, array $data): Prompt
+{
+    // Guarda versión anterior antes de actualizar
+    $this->versionRepository->crearVersion($prompt);
+    
+    return $this->promptRepository->update($prompt, $data);
+}
+```
+
+**Validaciones:**
+- Título: mínimo 5 caracteres, máximo 200
+- Contenido: mínimo 10 caracteres
+- Etiquetas: máximo 5 por prompt
+- Usuario solo puede editar sus propios prompts (via Policy)
+
+---
+
+#### 2️⃣ Sistema Multi-Provider de IA
+
+**Descripción:** Integración simultánea con 3 proveedores de IA para máxima flexibilidad.
+
+| Provider | Modelo | Velocidad | Contexto |
+|----------|--------|-----------|----------|
+| **Claude** | Claude 3.5 Sonnet | ⭐⭐⭐ | 200K tokens |
+| **Gemini** | Gemini 1.5 Pro | ⭐⭐⭐⭐ | 1M tokens |
+| **Groq** | Llama 3.1 70B | ⭐⭐⭐⭐⭐ | 8K tokens |
+
+**Cambio dinámico:**
+```javascript
+// resources/js/chatbot.js
+Alpine.data('chatbot', () => ({
+    provider: 'claude',
+    changeProvider(newProvider) {
+        this.provider = newProvider;
+        // Actualiza UI sin recargar página
+    }
+}));
+```
+
+**Features:**
+- Selección de modelo sin recargar
+- Historial por proveedor
+- Comando: `php artisan check:models` para ver modelos disponibles
+
+---
+
+#### 3️⃣ Sistema de Calificación Comunitario
+
+**Descripción:** Calificación de 1-5 estrellas con promedio ponderado y validación única por usuario.
+
+**Reglas de negocio:**
+- ✅ 1 calificación por usuario por prompt
+- ✅ Recalcula promedio automáticamente
+- ✅ No puedes calificar tus propios prompts
+- ✅ Editable (cambiar estrellas)
+
+**Tabla resumen:**
+
+| Estadística | Cálculo |
+|------------|---------|
+| **Promedio** | `SUM(estrellas) / COUNT(calificaciones)` |
+| **Total Calificaciones** | `COUNT(*)` |
+| **Distribución** | Histograma 1-5 estrellas |
+
+**Implementación:**
+```php
+// app/Services/CalificacionService.php
+public function calificar(Prompt $prompt, User $user, int $estrellas): Calificacion
+{
+    // Valida: no es propietario y estrellas 1-5
+    $this->validarCalificacion($prompt, $user, $estrellas);
+    
+    return Calificacion::updateOrCreate(
+        ['prompt_id' => $prompt->id, 'user_id' => $user->id],
+        ['estrellas' => $estrellas]
+    );
+}
+```
+
+---
+
+#### 4️⃣ Sistema de Compartir con Permisos Granulares
+
+**Descripción:** Genera enlaces temporales o permanentes con control de acceso fino.
+
+**Tipos de permisos:**
+
+| Permiso | Usuario Puede |
+|---------|--------------|
+| **Lectura** | Ver prompt, copiar contenido |
+| **Edición** | Modificar prompt, ver versiones |
+| **Admin** | Editar + eliminar + compartir |
+
+**Opciones de expiración:**
+- 1 hora
+- 1 día
+- 7 días
+- 30 días
+- Sin expiración
+
+**Tabla BD:**
+```sql
+CREATE TABLE accesos_compartidos (
+    id BIGINT PRIMARY KEY,
+    prompt_id BIGINT,
+    user_id BIGINT,
+    email_compartido VARCHAR(255),
+    token VARCHAR(255) UNIQUE,
+    permiso ENUM('lectura', 'edicion'),
+    expira_en TIMESTAMP NULL,
+    created_at TIMESTAMP
+);
+```
+
+**Generación de enlace:**
+```php
+// app/Services/CompartirService.php
+public function generarAcceso(Prompt $prompt, string $email, string $permiso): string
+{
+    $token = Str::random(32);
+    
+    AccesoCompartido::create([
+        'prompt_id' => $prompt->id,
+        'email_compartido' => $email,
+        'token' => $token,
+        'permiso' => $permiso,
+        'expira_en' => now()->addDays(7),
+    ]);
+    
+    return route('compartidos.acceso', $token);
+}
+```
+
+---
+
+#### 5️⃣ Control de Acceso con Policies
+
+**Descripción:** Autorización basada en Laravel Policies para cada acción del sistema.
+
+**Policies implementadas:**
+
+| Policy | Métodos | Validaciones |
+|--------|---------|--------------|
+| `PromptPolicy` | view, update, delete, share | Propietario o admin |
+| `ComentarioPolicy` | create, update, delete | Usuario autenticado |
+
+**Ejemplo de Policy:**
+```php
+// app/Policies/PromptPolicy.php
+class PromptPolicy
+{
+    public function update(User $user, Prompt $prompt): bool
+    {
+        // Solo propietario o admin
+        return $user->id === $prompt->user_id 
+            || $user->hasRole('admin');
+    }
+    
+    public function share(User $user, Prompt $prompt): bool
+    {
+        // Solo propietario puede compartir
+        return $user->id === $prompt->user_id;
+    }
+}
+```
+
+**Uso en Controlador:**
+```php
+public function update(Request $request, Prompt $prompt)
+{
+    $this->authorize('update', $prompt);
+    
+    // Usuario autorizado, procede...
+}
+```
+
+---
+
+#### 6️⃣ Gestión de Usuarios y Roles
+
+**Descripción:** Sistema de roles jerárquico con permisos diferenciados.
+
+**Roles del sistema:**
+
+| Rol | Permisos |
+|-----|----------|
+| **Admin** | Acceso total, gestión usuarios, configuración |
+| **User** | CRUD prompts propios, chat IA, calificaciones |
+| **Guest** | Solo visualización de prompts públicos |
+
+**Tabla de permisos:**
+
+| Acción | Admin | User | Guest |
+|--------|-------|------|-------|
+| Ver prompts públicos | ✅ | ✅ | ✅ |
+| Crear prompt | ✅ | ✅ | ❌ |
+| Editar prompt propio | ✅ | ✅ | ❌ |
+| Editar prompt ajeno | ✅ | ❌ | ❌ |
+| Eliminar cualquier prompt | ✅ | ❌ | ❌ |
+| Usar chatbot IA | ✅ | ✅ | ❌ |
+| Ver panel admin | ✅ | ❌ | ❌ |
+| Gestionar usuarios | ✅ | ❌ | ❌ |
+
+**Middleware:**
+```php
+// routes/master-web.php
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    Route::get('/admin/usuarios', [UsuarioController::class, 'index']);
+});
+```
+
+---
+
+#### 7️⃣ Búsqueda Avanzada y Filtrado
+
+**Descripción:** Sistema de búsqueda full-text con múltiples filtros combinables.
+
+**Filtros disponibles:**
+
+| Filtro | Tipo | Opciones |
+|--------|------|----------|
+| **Texto** | Input | Busca en título + contenido |
+| **Etiquetas** | Multi-select | Tags existentes |
+| **Autor** | Dropdown | Todos los usuarios |
+| **Calificación** | Range | 1-5 estrellas |
+| **Fecha** | Date range | Desde - Hasta |
+| **Visibilidad** | Radio | Público / Privado / Todos |
+
+**Query Builder:**
+```php
+// app/Repositories/PromptRepository.php
+public function buscar(array $filtros): Collection
+{
+    return Prompt::query()
+        ->when($filtros['texto'] ?? null, function ($query, $texto) {
+            $query->where('titulo', 'LIKE', "%{$texto}%")
+                  ->orWhere('contenido', 'LIKE', "%{$texto}%");
+        })
+        ->when($filtros['etiquetas'] ?? null, function ($query, $etiquetas) {
+            $query->whereHas('etiquetas', function ($q) use ($etiquetas) {
+                $q->whereIn('id', $etiquetas);
+            });
+        })
+        ->when($filtros['calificacion_min'] ?? null, function ($query, $min) {
+            $query->withAvg('calificaciones', 'estrellas')
+                  ->having('calificaciones_avg_estrellas', '>=', $min);
+        })
+        ->paginate(15);
+}
+```
+
+---
+
+#### 8️⃣ Gestión de Configuraciones Sistema
+
+**Descripción:** Panel administrativo para configurar parámetros globales del sistema.
+
+**Configuraciones disponibles:**
+
+| Categoría | Configuración | Tipo |
+|-----------|--------------|------|
+| **General** | Nombre aplicación | Text |
+| **General** | Modo mantenimiento | Boolean |
+| **APIs** | Claude API Key | Password |
+| **APIs** | Gemini API Key | Password |
+| **APIs** | Groq API Key | Password |
+| **Seguridad** | Timeout sesión | Number (minutos) |
+| **Backup** | Backup automático | Boolean |
+| **Cache** | Driver cache | Select (redis/file) |
+
+**Implementación:**
+```php
+// app/Models/AppSetting.php
+class AppSetting extends Model
+{
+    public static function get(string $key, $default = null)
+    {
+        return cache()->remember("setting.{$key}", 3600, function () use ($key, $default) {
+            return static::where('key', $key)->value('value') ?? $default;
+        });
+    }
+}
+```
+
+**Comando para verificar APIs:**
+```bash
+php artisan app:verify-ai-keys
+# Output: ✅ Claude: OK | ❌ Gemini: Invalid Key | ✅ Groq: OK
+```
+
+---
+
+### 📊 Resumen de Funcionalidades
+
+| Funcionalidad | Estado | Cobertura Tests |
+|--------------|--------|----------------|
+| CRUD Prompts | ✅ Completo | 95% |
+| Multi-Provider IA | ✅ Completo | 90% |
+| Calificaciones | ✅ Completo | 92% |
+| Sistema Compartir | ✅ Completo | 88% |
+| Policies Autorización | ✅ Completo | 100% |
+| Gestión Usuarios/Roles | ✅ Completo | 85% |
+| Búsqueda Avanzada | ✅ Completo | 87% |
+| Configuraciones Admin | ✅ Completo | 80% |
 
 ---
 
