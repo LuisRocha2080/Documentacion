@@ -1,469 +1,874 @@
-# 📱 GoRide - Documentación Técnica Avanzada
+# 📱 GoRide - Documentación Técnica
 
-## 6.4 DESARROLLO DEL SISTEMA DE AUTENTICACIÓN
+# CAPÍTULO VII
+# ARQUITECTURA Y SEGURIDAD DEL SISTEMA
 
-El sistema de autenticación implementa un flujo completo de registro, inicio de sesión y gestión de credenciales, utilizando Context API para el manejo de estado global y AsyncStorage para persistencia local. Esta arquitectura garantiza que la sesión del usuario se mantenga activa incluso después de cerrar la aplicación, proporcionando una experiencia de usuario fluida y segura.
+## 7.1 ARQUITECTURA GENERAL DEL SISTEMA
 
-### 🔐 Componentes del Sistema de Autenticación
+La arquitectura de GoRide implementa un modelo cliente-servidor distribuido de tres capas, combinando tecnologías web modernas con un enfoque de diseño orientado a servicios. Esta arquitectura separa claramente la lógica de presentación, negocio y datos, permitiendo escalabilidad horizontal, mantenimiento independiente de componentes y alta disponibilidad del sistema.
 
-| Componente | Ubicación | Responsabilidad | Tecnología |
-|------------|-----------|-----------------|------------|
-| **AuthContext** | [src/context/AuthContext.tsx](src/context/AuthContext.tsx) | Gestión de estado global de autenticación | Context API + React Hooks |
-| **API Login** | [backend/server.js](backend/server.js) (POST /api/login) | Validación de credenciales en servidor | Express + MySQL |
-| **API Register** | [backend/server.js](backend/server.js) (POST /api/register) | Creación de nuevos usuarios | Express + MySQL |
-| **BaseDeDatos** | [src/controladores/BaseDeDatos.ts](src/controladores/BaseDeDatos.ts) | Controlador de peticiones HTTP | Axios + Fetch API |
-| **LoginScreen** | [app/index.tsx](app/index.tsx) | Interfaz de inicio de sesión | React Native |
-| **AsyncStorage** | AsyncStorage (React Native) | Persistencia local de sesión | @react-native-async-storage |
-
-### 📊 Flujo de Autenticación
+### 🏗️ Modelo de Arquitectura de Tres Capas
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    1. INICIO DE SESIÓN (LOGIN)                  │
-└─────────────────────────────────────────────────────────────────┘
-
-Usuario ingresa credenciales
-         │
-         ▼
-┌─────────────────────────────────────┐
-│  LoginScreen (app/index.tsx)        │
-│  - email: string                    │
-│  - password: string                 │
-└────────────┬────────────────────────┘
-             │
-             │ handleLogin()
-             ▼
-┌─────────────────────────────────────┐
-│  AuthContext.login()                │
-│  - Validación local                 │
-│  - Invoca controlador               │
-└────────────┬────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│  BaseDeDatos.login()                │
-│  POST /api/login                    │
-│  Body: { email, password }          │
-└────────────┬────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│  Backend - Express Server           │
-│  1. Buscar usuario en MySQL         │
-│  2. Validar contraseña (plaintext)  │
-│  3. Retornar datos del usuario      │
-└────────────┬────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│  AuthContext recibe respuesta       │
-│  - setUser(userData)                │
-│  - AsyncStorage.setItem()           │
-│  - Navegar a Dashboard              │
-└─────────────────────────────────────┘
-
+│                     CAPA 1: PRESENTACIÓN                        │
+│                       (Cliente Móvil)                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  📱 React Native App (Expo)                                     │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │                                                         │    │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │    │
+│  │  │   VISTAS     │  │ COMPONENTES  │  │   CONTEXT    │ │    │
+│  │  │ (UI Layer)   │  │  (Shared)    │  │  (Estado)    │ │    │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘ │    │
+│  │         │                 │                  │          │    │
+│  │         └─────────────────┼──────────────────┘          │    │
+│  │                           │                             │    │
+│  │                  ┌────────▼────────┐                    │    │
+│  │                  │  CONTROLADORES  │                    │    │
+│  │                  │  BaseDeDatos.ts │                    │    │
+│  │                  │  (HTTP Client)  │                    │    │
+│  │                  └────────┬────────┘                    │    │
+│  │                           │                             │    │
+│  └───────────────────────────┼─────────────────────────────┘    │
+│                              │                                  │
+│                              │ REST API + WebSocket             │
+│                              │ (HTTP/HTTPS + Socket.IO)         │
+└──────────────────────────────┼──────────────────────────────────┘
+                               │
+                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    2. REGISTRO (REGISTER)                       │
+│                     CAPA 2: LÓGICA DE NEGOCIO                   │
+│                        (Servidor Backend)                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  🖥️ Node.js + Express Server                                    │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │                                                         │    │
+│  │  ┌──────────────────────────────────────────────────┐  │    │
+│  │  │           REST API ENDPOINTS                      │  │    │
+│  │  │  • /api/login          • /api/viajes            │  │    │
+│  │  │  • /api/register       • /api/conductores       │  │    │
+│  │  │  • /api/usuarios       • /api/metodos_pago      │  │    │
+│  │  │  • /api/mensajes       • /api/notificaciones    │  │    │
+│  │  └──────────────────────────────────────────────────┘  │    │
+│  │                                                         │    │
+│  │  ┌──────────────────────────────────────────────────┐  │    │
+│  │  │         MIDDLEWARE & SERVICIOS                    │  │    │
+│  │  │  • CORS Handler       • JSON Parser              │  │    │
+│  │  │  • Error Handler      • Validaciones             │  │    │
+│  │  │  • Socket.IO Server   • Logging                  │  │    │
+│  │  └──────────────────────────────────────────────────┘  │    │
+│  │                                                         │    │
+│  │  ┌──────────────────────────────────────────────────┐  │    │
+│  │  │       LÓGICA DE NEGOCIO                          │  │    │
+│  │  │  • Asignación de conductores (Haversine)         │  │    │
+│  │  │  • Cálculo de tarifas                            │  │    │
+│  │  │  • Gestión de estados de viajes                  │  │    │
+│  │  │  • Sistema de calificaciones                     │  │    │
+│  │  └──────────────────────────────────────────────────┘  │    │
+│  │                           │                             │    │
+│  └───────────────────────────┼─────────────────────────────┘    │
+│                              │                                  │
+│                              │ MySQL Driver (mysql2)            │
+│                              │                                  │
+└──────────────────────────────┼──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     CAPA 3: DATOS                               │
+│                   (Base de Datos Relacional)                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  💾 MySQL Database Server                                       │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │                                                         │    │
+│  │  Tablas Principales:                                    │    │
+│  │  ├── usuarios            (Datos de usuarios)           │    │
+│  │  ├── conductores         (Perfiles de conductores)     │    │
+│  │  ├── viajes              (Solicitudes y viajes)        │    │
+│  │  ├── mensajes            (Chat en tiempo real)         │    │
+│  │  ├── calificaciones      (Ratings de viajes)           │    │
+│  │  ├── metodos_pago        (Medios de pago)              │    │
+│  │  ├── notificaciones      (Alertas del sistema)         │    │
+│  │  ├── lugares_guardados   (Direcciones favoritas)       │    │
+│  │  ├── vehiculos           (Datos de vehículos)          │    │
+│  │  ├── sesiones            (Control de sesiones)         │    │
+│  │  └── soporte_tickets     (Tickets de ayuda)            │    │
+│  │                                                         │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
 └─────────────────────────────────────────────────────────────────┘
-
-Usuario completa formulario
-         │
-         ▼
-┌─────────────────────────────────────┐
-│  RegistroScreen (app/registro.tsx)  │
-│  - nombre, email, password, tel     │
-└────────────┬────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│  AuthContext.register()             │
-└────────────┬────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│  BaseDeDatos.register()             │
-│  POST /api/register                 │
-└────────────┬────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│  Backend - Express Server           │
-│  1. Verificar email no existe       │
-│  2. INSERT INTO usuarios            │
-│  3. Retornar usuario creado         │
-└────────────┬────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────┐
-│  Auto-login después de registro     │
-│  - Sesión persistida                │
-│  - Redirigir a Dashboard            │
-└─────────────────────────────────────┘
 ```
 
-### 🔑 Estructura del AuthContext
+### 📊 Componentes Principales del Sistema
 
-#### Tipos y Interfaces
+| Componente | Capa | Tecnología | Puerto | Función Principal |
+|------------|------|------------|--------|-------------------|
+| **React Native App** | Presentación | Expo + TypeScript | N/A | Interfaz de usuario móvil |
+| **BaseDeDatos Controller** | Presentación | TypeScript + Fetch API | N/A | Cliente HTTP y gateway |
+| **Express Server** | Negocio | Node.js + Express | 3000 | API REST y lógica |
+| **Socket.IO Server** | Negocio | Socket.IO | 3000 | Comunicación en tiempo real |
+| **MySQL Database** | Datos | MySQL 8.0+ | 3306 | Persistencia de datos |
+| **AsyncStorage** | Presentación | React Native | N/A | Almacenamiento local |
+
+### 🔄 Flujo de Comunicación Cliente-Servidor
+
+#### 1. Arquitectura de Comunicación REST
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    FLUJO DE PETICIÓN HTTP                      │
+└────────────────────────────────────────────────────────────────┘
+
+Vista (React Component)
+    │
+    │ Llamada a función
+    ▼
+AuthContext / Hook
+    │
+    │ Invoca método
+    ▼
+BaseDeDatos.ts (Controlador)
+    │
+    │ HTTP Request
+    │ ┌──────────────────────────────────────────┐
+    │ │ fetch(`http://IP:3000/api/endpoint`, {  │
+    │ │   method: 'POST',                        │
+    │ │   headers: { 'Content-Type': 'json' },   │
+    │ │   body: JSON.stringify(data)             │
+    │ │ })                                       │
+    │ └──────────────────────────────────────────┘
+    │
+    ▼
+═══════════════════════════════════════════════════════════════
+        INTERNET / RED LOCAL (Wi-Fi / Cellular)
+═══════════════════════════════════════════════════════════════
+    │
+    ▼
+Express Middleware
+    ├─► CORS Handler      (Permitir cross-origin)
+    ├─► JSON Parser       (Parsear body)
+    ├─► Error Handler     (Capturar errores)
+    └─► Router            (Enrutar petición)
+        │
+        ▼
+    Endpoint Handler (server.js)
+        │
+        │ Query SQL
+        ▼
+    MySQL Database
+        │
+        │ Resultado
+        ▼
+    JSON Response
+        │
+═══════════════════════════════════════════════════════════════
+        INTERNET / RED LOCAL (Wi-Fi / Cellular)
+═══════════════════════════════════════════════════════════════
+    │
+    ▼
+BaseDeDatos.ts (Controlador)
+    │
+    │ return response.json()
+    ▼
+AuthContext / Hook
+    │
+    │ Actualizar estado
+    ▼
+Vista (React Component)
+    │
+    │ Re-render UI
+    ▼
+Usuario ve resultado
+```
+
+#### 2. Arquitectura de Comunicación en Tiempo Real (WebSocket)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│              COMUNICACIÓN BIDIRECCIONAL SOCKET.IO              │
+└────────────────────────────────────────────────────────────────┘
+
+Cliente (SocketService.ts)                 Servidor (Socket.IO)
+    │                                             │
+    │ socket.emit('evento', datos)                │
+    ├─────────────────────────────────────────────►
+    │                                             │
+    │                                    ┌────────▼────────┐
+    │                                    │ Procesar evento │
+    │                                    │ Actualizar BD   │
+    │                                    └────────┬────────┘
+    │                                             │
+    │                socket.broadcast()           │
+    ◄─────────────────────────────────────────────┤
+    │                                             │
+    ▼                                             ▼
+Callback ejecuta                        Notifica a otros clientes
+UI actualiza en tiempo real             conectados al mismo room
+```
+
+### 🌐 Configuración de Red y Endpoints
+
+#### Configuración Dinámica del API_URL
 
 ```typescript
-type User = {
-  id: number;
-  nombre: string;
-  email: string;
-  es_conductor: number;       // 0 = Pasajero, 1 = Conductor
-  foto_perfil?: string;
-  conductor_id?: number;
-  telefono?: string;
-  ciudad?: string;
+// 📍 src/controladores/BaseDeDatos.ts
+
+const getApiUrl = () => {
+  // Opción 1: IP Manual (Producción / Wi-Fi)
+  const manualIP = "172.25.3.48";  // Cambiar según red
+  return `http://${manualIP}:3000/api`;
+
+  // Opción 2: Detección Dinámica (Expo Go)
+  // const debuggerHost = Constants.expoConfig?.hostUri;
+  // const localhost = debuggerHost?.split(":")[0];
+  // return `http://${localhost}:3000/api`;
+
+  // Opción 3: Emulador Android
+  // return "http://10.0.2.2:3000/api";
 };
 
-type AuthContextType = {
-  user: User | null;           // Usuario actual o null
-  isLoading: boolean;          // Estado de carga inicial
-  login: (email, password) => Promise<Result>;
-  register: (data) => Promise<Result>;
-  logout: () => Promise<void>;
-  updateUser: (userData) => Promise<void>;
+export const API_URL = getApiUrl();
+```
+
+#### Tabla de Configuraciones por Entorno
+
+| Entorno | IP/Host | Puerto | URL Completa | Uso |
+|---------|---------|--------|--------------|-----|
+| **Desarrollo Local (Web)** | localhost | 3000 | `http://localhost:3000/api` | Pruebas en navegador |
+| **Expo Go (Dispositivo Físico)** | IP de tu PC | 3000 | `http://192.168.X.X:3000/api` | Testing en móvil real |
+| **Emulador Android** | 10.0.2.2 | 3000 | `http://10.0.2.2:3000/api` | Emulador Android Studio |
+| **Simulador iOS** | localhost | 3000 | `http://localhost:3000/api` | Simulador Xcode |
+| **Producción** | dominio.com | 443 | `https://api.dominio.com` | Servidor en nube |
+
+### 🔒 Capas de Seguridad
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   CAPAS DE SEGURIDAD DEL SISTEMA                │
+└─────────────────────────────────────────────────────────────────┘
+
+1. SEGURIDAD EN CLIENTE (Frontend)
+   ├─► Validación de entrada de usuario
+   ├─► AsyncStorage (almacenamiento local)
+   ├─► HTTPS en producción
+   └─► No almacenar contraseñas en texto plano
+
+2. SEGURIDAD EN TRANSPORTE (Red)
+   ├─► CORS configurado (solo orígenes permitidos)
+   ├─► HTTPS/TLS en producción
+   ├─► Timeout en peticiones (15 segundos)
+   └─► Validación de tamaño de payload (50MB)
+
+3. SEGURIDAD EN SERVIDOR (Backend)
+   ├─► Validación de datos de entrada
+   ├─► SQL Parameterizado (prevenir inyección)
+   ├─► Middleware de autenticación (TODO: JWT)
+   ├─► Rate limiting (TODO)
+   └─► Logging de actividades
+
+4. SEGURIDAD EN DATOS (Base de Datos)
+   ├─► Credenciales en variables de entorno
+   ├─► Claves foráneas y restricciones
+   ├─► Encriptación de contraseñas (TODO: bcrypt)
+   ├─► Backups automáticos
+   └─► Acceso restringido por usuario
+```
+
+### 📦 Despliegue y Escalabilidad
+
+#### Arquitectura de Despliegue Recomendada
+
+| Componente | Servidor | Replicación | Auto-scaling |
+|------------|----------|-------------|--------------|
+| **Frontend (Expo)** | CDN (Web) / App Store | N/A | N/A |
+| **API Express** | AWS EC2 / DigitalOcean | Load Balancer + 2-N instancias | ✅ Horizontal |
+| **MySQL** | AWS RDS / Cloud SQL | Master-Slave Replication | ✅ Vertical |
+| **Socket.IO** | Socket cluster | Redis Adapter para multi-nodos | ✅ Horizontal |
+| **Assets (Imágenes)** | S3 / Cloudinary | CDN Global | N/A |
+
+#### Escalabilidad Horizontal
+
+```
+                    Load Balancer (Nginx)
+                            │
+           ┌────────────────┼────────────────┐
+           │                │                │
+           ▼                ▼                ▼
+    ┌──────────┐     ┌──────────┐     ┌──────────┐
+    │ Express  │     │ Express  │     │ Express  │
+    │ Server 1 │     │ Server 2 │     │ Server N │
+    └────┬─────┘     └────┬─────┘     └────┬─────┘
+         │                │                │
+         └────────────────┼────────────────┘
+                          │
+                    ┌─────▼─────┐
+                    │   MySQL   │
+                    │  Cluster  │
+                    └───────────┘
+```
+
+### 🎯 Ventajas de la Arquitectura Implementada
+
+| Ventaja | Descripción | Beneficio |
+|---------|-------------|-----------|
+| **Separación de Responsabilidades** | Cada capa tiene funciones específicas | Mantenimiento independiente |
+| **Escalabilidad** | Capas pueden escalar por separado | Optimización de recursos |
+| **Flexibilidad** | Frontend puede cambiar sin afectar backend | Desarrollo ágil |
+| **Reutilización** | API REST puede servir múltiples clientes | Web, iOS, Android con mismo backend |
+| **Testing** | Cada capa se prueba independientemente | Mayor cobertura de tests |
+| **Seguridad** | Capas de seguridad en cada nivel | Defensa en profundidad |
+
+---
+
+## 7.2 CONTROLADOR COMO NÚCLEO DEL SISTEMA
+
+El archivo `BaseDeDatos.ts` actúa como el controlador central del sistema, funcionando como un gateway único entre la capa de presentación y el backend. Este patrón de diseño (API Gateway Pattern) centraliza toda la comunicación HTTP, proporciona una interfaz consistente para las vistas y encapsula la lógica de comunicación con el servidor.
+
+### 🎮 Arquitectura del Controlador
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│               BASEDEDATOS.TS - CONTROLADOR CENTRAL              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │          CONFIGURACIÓN Y UTILIDADES                     │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • getApiUrl()        → Determina URL del servidor      │    │
+│  │ • fetchWithTimeout() → Peticiones con timeout          │    │
+│  │ • API_URL            → Constante exportada             │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE AUTENTICACIÓN                   │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • login()            → POST /api/login                 │    │
+│  │ • register()         → POST /api/register              │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE USUARIOS                        │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • obtenerUsuario()      → GET /api/usuarios/:id        │    │
+│  │ • actualizarPerfil()    → PUT /api/usuarios/:id        │    │
+│  │ • actualizarPassword()  → PUT /api/usuarios/:id/pwd    │    │
+│  │ • actualizarFoto()      → PUT /api/usuarios/:id/foto   │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE VIAJES                          │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • solicitarViaje()         → POST /api/viajes/solicitar│    │
+│  │ • obtenerHistorial()       → GET /api/viajes/historial │    │
+│  │ • obtenerViajesPendientes()→ GET /api/viajes/pendientes│    │
+│  │ • aceptarViaje()           → POST /api/viajes/aceptar  │    │
+│  │ • completarViaje()         → POST /api/viajes/completar│    │
+│  │ • cancelarViaje()          → PUT /api/viajes/:id/cancel│    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE CONDUCTORES                     │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • actualizarEstadoConductor() → POST /api/conductores  │    │
+│  │ • obtenerVehiculos()          → GET /api/vehiculos/:id │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE MÉTODOS DE PAGO                 │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • obtenerMetodosPago()  → GET /api/metodos_pago/:id    │    │
+│  │ • agregarMetodoPago()   → POST /api/metodos_pago       │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE CHAT                            │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • obtenerMensajes()  → GET /api/mensajes/:viaje_id     │    │
+│  │ • enviarMensaje()    → POST /api/mensajes              │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE SOPORTE                         │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • obtenerNotificaciones() → GET /api/notificaciones/:id│    │
+│  │ • obtenerTickets()        → GET /api/soporte/:id       │    │
+│  │ • crearTicket()           → POST /api/soporte          │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │               MÓDULO DE LUGARES                         │    │
+│  ├────────────────────────────────────────────────────────┤    │
+│  │ • obtenerLugares()  → GET /api/lugares/:usuario_id     │    │
+│  │ • guardarLugar()    → POST /api/lugares                │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 📊 Métodos del Controlador por Categoría
+
+#### Tabla de Operaciones Disponibles
+
+| Categoría | Total Métodos | Endpoints | Tipo de Operaciones |
+|-----------|---------------|-----------|---------------------|
+| **Autenticación** | 2 | `/api/login`, `/api/register` | POST |
+| **Usuarios** | 4 | `/api/usuarios/*` | GET, PUT |
+| **Viajes** | 6 | `/api/viajes/*` | GET, POST, PUT |
+| **Conductores** | 2 | `/api/conductores/*` | GET, POST |
+| **Métodos de Pago** | 2 | `/api/metodos_pago/*` | GET, POST |
+| **Chat/Mensajes** | 2 | `/api/mensajes/*` | GET, POST |
+| **Notificaciones** | 1 | `/api/notificaciones/*` | GET |
+| **Soporte** | 2 | `/api/soporte/*` | GET, POST |
+| **Lugares** | 2 | `/api/lugares/*` | GET, POST |
+| **Total** | **23 métodos** | **9 recursos** | GET, POST, PUT, DELETE |
+
+### 🔧 Funcionalidades Clave del Controlador
+
+#### 1. Gestión de Timeout
+
+```typescript
+// 📍 Ubicación: src/controladores/BaseDeDatos.ts
+
+const fetchWithTimeout = async (
+  url: string,
+  options: any = {},
+  timeout = 15000,  // 15 segundos
+) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
 };
 ```
 
-#### Métodos del AuthContext
+**Beneficios:**
+- ✅ Evita peticiones que cuelgan indefinidamente
+- ✅ Mejora la experiencia de usuario
+- ✅ Libera recursos del dispositivo
+- ✅ Permite mostrar mensajes de error apropiados
 
-| Método | Parámetros | Retorno | Función Principal |
-|--------|-----------|---------|-------------------|
-| `login()` | `email: string`<br>`password: string` | `Promise<{success: boolean, message?: string}>` | • Invoca API de login<br>• Almacena usuario en estado<br>• Persiste en AsyncStorage<br>• Retorna resultado |
-| `register()` | `nombre: string`<br>`email: string`<br>`password: string`<br>`telefono: string` | `Promise<{success: boolean, message?: string}>` | • Invoca API de registro<br>• Auto-login post registro<br>• Persiste sesión |
-| `logout()` | Ninguno | `Promise<void>` | • Limpia estado (setUser(null))<br>• Elimina AsyncStorage<br>• Redirige a login |
-| `updateUser()` | `userData: Partial<User>` | `Promise<void>` | • Actualiza estado local<br>• Sincroniza con AsyncStorage |
-| `checkUser()` | Ninguno (interno) | `Promise<void>` | • Recupera sesión al iniciar app<br>• Lee de AsyncStorage |
+#### 2. Manejo de Errores Centralizado
 
-### 📡 Endpoints de Autenticación (Backend)
-
-#### 1. POST /api/login
-
-**Request:**
-```json
-{
-  "email": "usuario@example.com",
-  "password": "contraseña123"
-}
-```
-
-**Response (Éxito):**
-```json
-{
-  "success": true,
-  "user": {
-    "id": 1,
-    "nombre": "Juan Pérez",
-    "email": "usuario@example.com",
-    "telefono": "12345678",
-    "es_conductor": 0,
-    "foto_perfil": null,
-    "conductor_id": null
+```typescript
+// Patrón consistente en todos los métodos
+login: async (email: string, password: string) => {
+  try {
+    const response = await fetchWithTimeout(`${API_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("Login Error:", error);
+    return { success: false, message: "Error de conexión" };
   }
 }
 ```
 
-**Response (Error):**
-```json
-{
-  "success": false,
-  "message": "Credenciales inválidas"
-}
-```
+**Ventajas:**
+| Aspecto | Implementación | Resultado |
+|---------|----------------|-----------|
+| **Consistencia** | Todos los métodos tienen try-catch | Código predecible |
+| **Logging** | console.error en cada error | Debugging facilitado |
+| **Respuesta Uniforme** | Siempre retorna `{success, message}` | UI coherente |
+| **No Crashes** | Errores capturados | App estable |
 
-**Lógica del Servidor:**
-```javascript
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body;
-  
-  db.execute(
-    "SELECT * FROM usuarios WHERE email = ? AND password = ?",
-    [email, password],
-    (err, users) => {
-      if (err) return res.status(500).json({ error: err.message });
-      
-      if (users.length > 0) {
-        const user = users[0];
-        // Obtener conductor_id si es conductor
-        if (user.es_conductor) {
-          db.execute(
-            "SELECT id FROM conductores WHERE usuario_id = ?",
-            [user.id],
-            (err, conductores) => {
-              user.conductor_id = conductores[0]?.id || null;
-              res.json({ success: true, user });
-            }
-          );
-        } else {
-          res.json({ success: true, user });
-        }
-      } else {
-        res.json({ success: false, message: "Credenciales inválidas" });
-      }
-    }
-  );
-});
-```
-
-#### 2. POST /api/register
-
-**Request:**
-```json
-{
-  "nombre": "María García",
-  "email": "maria@example.com",
-  "password": "password123",
-  "telefono": "987654321"
-}
-```
-
-**Response (Éxito):**
-```json
-{
-  "success": true,
-  "user": {
-    "id": 5,
-    "nombre": "María García",
-    "email": "maria@example.com",
-    "telefono": "987654321",
-    "es_conductor": 0
-  }
-}
-```
-
-**Validaciones Implementadas:**
-
-| Validación | Tipo | Mensaje de Error |
-|------------|------|------------------|
-| Email único | Base de datos | "El correo ya está registrado" |
-| Campos requeridos | Frontend | "Por favor completa todos los campos" |
-| Formato email | Frontend | "Ingresa un correo válido" |
-| Conexión | Red | "Error de conexión" |
-
-### 🗄️ Persistencia de Sesión con AsyncStorage
-
-#### Almacenamiento Local
+#### 3. Configuración Dinámica de API_URL
 
 ```typescript
-// Guardar sesión
-await AsyncStorage.setItem("user_session", JSON.stringify(userData));
-
-// Recuperar sesión al iniciar
-const storedUser = await AsyncStorage.getItem("user_session");
-if (storedUser) {
-  setUser(JSON.parse(storedUser));
-}
-
-// Eliminar sesión (logout)
-await AsyncStorage.removeItem("user_session");
-```
-
-#### Ciclo de Vida de la Sesión
-
-| Evento | Acción | Resultado |
-|--------|--------|-----------|
-| **App inicia** | `checkUser()` ejecuta en useEffect | Sesión restaurada automáticamente |
-| **Login exitoso** | `setItem("user_session", user)` | Sesión guardada |
-| **Cierre de app** | AsyncStorage persiste | Datos conservados |
-| **Reapertura** | Lee AsyncStorage | Usuario mantiene sesión |
-| **Logout** | `removeItem("user_session")` | Sesión eliminada |
-
-### 🛡️ Seguridad y Mejoras Recomendadas
-
-#### Estado Actual
-
-| Aspecto | Implementación Actual | Nivel de Seguridad |
-|---------|----------------------|-------------------|
-| **Almacenamiento de contraseñas** | Texto plano en BD | ⚠️ Bajo |
-| **Transmisión** | HTTP sin cifrado | ⚠️ Bajo |
-| **Tokens de sesión** | No implementado | ⚠️ Básico |
-| **Validación de entrada** | Frontend básica | ⚠️ Medio |
-
-#### Mejoras Recomendadas
-
-```typescript
-// ✅ 1. Hash de contraseñas (Backend)
-const bcrypt = require('bcrypt');
-
-// Registro
-const hashedPassword = await bcrypt.hash(password, 10);
-db.execute("INSERT INTO usuarios (..., password) VALUES (..., ?)", [hashedPassword]);
-
-// Login
-const match = await bcrypt.compare(password, user.password);
-
-// ✅ 2. JWT Tokens
-const jwt = require('jsonwebtoken');
-
-const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: '7d' });
-res.json({ success: true, token, user });
-
-// ✅ 3. Middleware de Autenticación
-const verifyToken = (req, res, next) => {
-  const token = req.headers['authorization'];
-  if (!token) return res.status(403).send('Token requerido');
+const getApiUrl = () => {
+  // Configuración manual para Wi-Fi
+  const manualIP = "172.25.3.48";
+  return `http://${manualIP}:3000/api`;
   
-  jwt.verify(token, SECRET_KEY, (err, decoded) => {
-    if (err) return res.status(401).send('Token inválido');
-    req.userId = decoded.userId;
-    next();
-  });
+  // Otras opciones comentadas:
+  // - Detección automática con Expo
+  // - IP para emulador Android
+  // - Localhost para web
 };
 
-app.get('/api/perfil', verifyToken, (req, res) => {
-  // req.userId disponible
-});
+export const API_URL = getApiUrl();
+console.log("🚀 [BaseDeDatos] Configured API URL:", API_URL);
 ```
 
-### 📱 Implementación en la Vista (LoginScreen)
+**Escenarios de Uso:**
+
+| Escenario | Configuración | IP/Host | Cuándo Usar |
+|-----------|---------------|---------|-------------|
+| **Testing en dispositivo físico** | Manual IP | 192.168.X.X | Desarrollo con celular en misma red |
+| **Emulador Android** | Android Bridge | 10.0.2.2 | Pruebas en emulador |
+| **Simulador iOS** | Localhost | localhost | Pruebas en simulador Mac |
+| **Web Browser** | Localhost | localhost | Desarrollo web |
+| **Producción** | Dominio | https://api.goride.com | Deploy final |
+
+### 🔄 Flujo de Uso del Controlador
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│              EJEMPLO: SOLICITAR UN VIAJE                       │
+└────────────────────────────────────────────────────────────────┘
+
+1. Vista (DashboardVista.tsx)
+   │
+   │ const solicitarViaje = async () => {
+   │   const resultado = await BaseDeDatos.solicitarViaje(
+   │     user.id, origen, destino, precio, "viaje"
+   │   );
+   │ }
+   │
+   ▼
+2. Controlador (BaseDeDatos.ts)
+   │
+   │ solicitarViaje: async (usuario_id, origen, destino, precio, tipo) => {
+   │   try {
+   │     const response = await fetch(`${API_URL}/viajes/solicitar`, {
+   │       method: "POST",
+   │       headers: { "Content-Type": "application/json" },
+   │       body: JSON.stringify({ usuario_id, origen, destino, precio, tipo })
+   │     });
+   │     return await response.json();
+   │   } catch (error) {
+   │     return { success: false, message: "Error de conexión" };
+   │   }
+   │ }
+   │
+   ▼
+3. Transporte HTTP
+   │
+   │ POST http://172.25.3.48:3000/api/viajes/solicitar
+   │ Content-Type: application/json
+   │ Body: { usuario_id: 1, origen: "...", destino: "...", ... }
+   │
+   ▼
+4. Backend (server.js)
+   │
+   │ app.post("/api/viajes/solicitar", (req, res) => {
+   │   // Buscar conductor cercano
+   │   // Crear registro en BD
+   │   // Retornar resultado
+   │   res.json({ success: true, viaje_id: 123, conductor_id: 5 });
+   │ });
+   │
+   ▼
+5. Respuesta al Controlador
+   │
+   │ { success: true, viaje_id: 123, conductor_id: 5 }
+   │
+   ▼
+6. Vista actualiza UI
+   │
+   │ if (resultado.success) {
+   │   setFase("en_viaje");
+   │   mostrarConductor(resultado.conductor_id);
+   │ }
+   │
+   ▼
+Usuario ve conductor asignado en el mapa
+```
+
+### 📋 Ejemplo de Implementación Completa
 
 ```typescript
-export default function LoginScreen() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+// 📍 Vista: DashboardVista.tsx
+import { BaseDeDatos } from "../controladores/BaseDeDatos";
 
-  const handleLogin = async () => {
-    // 1. Validación local
-    if (!email || !password) {
-      Alert.alert("Error", "Por favor ingresa correo y contraseña");
-      return;
-    }
-
-    // 2. Mostrar indicador de carga
+const DashboardVista = () => {
+  const { user } = useAuth();
+  const [viaje, setViaje] = useState(null);
+  
+  const solicitarViaje = async () => {
+    // 1. Mostrar loading
     setLoading(true);
-
-    try {
-      // 3. Invocar AuthContext
-      const result = await login(email, password);
-
-      // 4. Manejar respuesta
-      if (result.success) {
-        router.replace("/(tabs)");  // Navegar a Dashboard
-      } else {
-        Alert.alert("Error", result.message || "Credenciales incorrectas");
-      }
-    } catch (error) {
-      Alert.alert("Error", "Ocurrió un error al conectar con el servidor");
-    } finally {
-      setLoading(false);
+    
+    // 2. Invocar controlador
+    const resultado = await BaseDeDatos.solicitarViaje(
+      user.id,
+      "Av. Cristo Redentor",
+      "Mall Ventura",
+      15.50,
+      "viaje",
+      null,
+      -17.7833,
+      -63.1821
+    );
+    
+    // 3. Manejar resultado
+    if (resultado.success) {
+      setViaje(resultado);
+      Alert.alert("Éxito", "Conductor asignado");
+      navegarAViaje();
+    } else {
+      Alert.alert("Error", resultado.message);
     }
+    
+    setLoading(false);
   };
-
+  
   return (
-    <View>
-      <TextInput
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <TouchableOpacity onPress={handleLogin} disabled={loading}>
-        <Text>{loading ? "Cargando..." : "Iniciar Sesión"}</Text>
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity onPress={solicitarViaje}>
+      <Text>Solicitar Viaje</Text>
+    </TouchableOpacity>
   );
-}
+};
 ```
 
-### 🔄 Estados de Autenticación
+### 🎯 Ventajas del Patrón Controlador
+
+| Ventaja | Descripción | Impacto |
+|---------|-------------|---------|
+| **Centralización** | Un solo punto de acceso al backend | Mantenimiento simplificado |
+| **Reutilización** | Métodos usados por múltiples vistas | Menos duplicación de código |
+| **Abstracción** | Vistas no conocen detalles de HTTP | Desacoplamiento |
+| **Testabilidad** | Fácil hacer mocks del controlador | Testing unitario |
+| **Consistencia** | Todos los errores se manejan igual | UX uniforme |
+| **Logging** | Punto único para logs de red | Debugging eficiente |
+| **Configuración** | Cambiar URL sin tocar vistas | Flexibilidad de deployment |
+
+### 🔒 Seguridad en el Controlador
 
 ```typescript
-┌─────────────────────────────────────────────────┐
-│  isLoading: true                                │
-│  user: null                                     │
-│  Estado: Verificando sesión guardada           │
-└────────────────┬────────────────────────────────┘
-                 │
-       ┌─────────┴─────────┐
-       │                   │
-       ▼                   ▼
-┌──────────────┐    ┌──────────────┐
-│ Sesión Existe│    │ No Hay Sesión│
-└──────┬───────┘    └──────┬───────┘
-       │                   │
-       ▼                   ▼
-┌──────────────┐    ┌──────────────┐
-│ isLoading:   │    │ isLoading:   │
-│   false      │    │   false      │
-│ user: User   │    │ user: null   │
-│ → Dashboard  │    │ → Login      │
-└──────────────┘    └──────────────┘
+// ✅ 1. Validación de datos antes de enviar
+solicitarViaje: async (...) => {
+  // Validar que los datos no estén vacíos
+  if (!usuario_id || !origen || !destino) {
+    return { success: false, message: "Datos incompletos" };
+  }
+  
+  // Continuar con la petición...
+}
+
+// ✅ 2. Sanitización de entrada
+actualizarPerfil: async (usuario_id, data) => {
+  // Limpiar caracteres especiales
+  const sanitizedData = {
+    nombre: data.nombre.trim(),
+    email: data.email.toLowerCase().trim(),
+    telefono: data.telefono.replace(/[^0-9]/g, '')
+  };
+  
+  // Enviar datos sanitizados
+}
+
+// ✅ 3. Headers de seguridad (Producción)
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${token}`,  // JWT Token
+  'X-API-Key': process.env.API_KEY     // API Key
+};
 ```
 
 ---
 
-## 6.5 DESARROLLO DE LOS MÓDULOS CRUD
+## 7.3 SISTEMA DE ROLES Y PERMISOS
 
-La aplicación implementa operaciones CRUD (Create, Read, Update, Delete) completas para gestionar las entidades principales del sistema: usuarios, viajes, conductores, métodos de pago, lugares guardados y mensajes. Cada módulo sigue una estructura RESTful con endpoints específicos en el backend y controladores correspondientes en el frontend.
+GoRide implementa un sistema de control de acceso basado en roles (RBAC - Role-Based Access Control) que diferencia entre usuarios pasajeros y conductores. Este sistema determina qué funcionalidades están disponibles para cada tipo de usuario, controlando el acceso a rutas, endpoints y características específicas de la aplicación.
 
-### 📊 Módulos CRUD Implementados
+### 👥 Roles del Sistema
 
-| Módulo | Entidad | Tabla MySQL | Operaciones | Endpoints |
-|--------|---------|-------------|-------------|-----------|
-| **Usuarios** | Usuario/Perfil | `usuarios` | C R U | `/api/usuarios` |
-| **Viajes** | Solicitud de viaje | `viajes` | C R U | `/api/viajes` |
-| **Conductores** | Perfil de conductor | `conductores` | C R U | `/api/conductores` |
-| **Métodos de Pago** | Tarjetas/cuentas | `metodos_pago` | C R D | `/api/metodos_pago` |
-| **Lugares** | Direcciones favoritas | `lugares_guardados` | C R D | `/api/lugares` |
-| **Mensajes** | Chat en tiempo real | `mensajes` | C R | `/api/mensajes` |
-| **Calificaciones** | Rating de viajes | `calificaciones` | C R | `/api/calificaciones` |
-| **Notificaciones** | Alertas del sistema | `notificaciones` | R U | `/api/notificaciones` |
-| **Soporte** | Tickets de ayuda | `soporte_tickets` | C R | `/api/soporte` |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   JERARQUÍA DE ROLES                            │
+└─────────────────────────────────────────────────────────────────┘
 
-### 🔷 1. MÓDULO DE USUARIOS
+                    ┌─────────────┐
+                    │   USUARIO   │
+                    │  (Genérico) │
+                    └──────┬──────┘
+                           │
+            ┌──────────────┴──────────────┐
+            │                             │
+            ▼                             ▼
+    ┌───────────────┐            ┌───────────────┐
+    │   PASAJERO    │            │   CONDUCTOR   │
+    │ es_conductor: 0│            │es_conductor: 1│
+    └───────────────┘            └───────────────┘
+            │                             │
+            │                             │
+    ┌───────▼───────┐            ┌───────▼───────┐
+    │  PERMISOS:    │            │  PERMISOS:    │
+    │ • Solicitar   │            │ • Todo lo de  │
+    │   viajes      │            │   Pasajero    │
+    │ • Ver historial│            │ • Aceptar     │
+    │ • Calificar   │            │   viajes      │
+    │ • Chat        │            │ • Ver         │
+    │ • Métodos pago│            │   pendientes  │
+    │ • Lugares     │            │ • Actualizar  │
+    │ • Soporte     │            │   estado      │
+    │               │            │ • Panel       │
+    │               │            │   conductor   │
+    └───────────────┘            └───────────────┘
+```
 
-#### Estructura de la Tabla
+### 📊 Estructura de Datos de Roles
+
+#### Modelo de Usuario
+
+```typescript
+// 📍 src/modelos/Usuario.ts
+
+export interface Usuario {
+  id: number;
+  nombre: string;
+  email: string;
+  telefono?: string;
+  foto_perfil?: string;
+  es_conductor: boolean;      // 0 = Pasajero, 1 = Conductor
+  conductor_id?: number;      // ID en tabla conductores (si es conductor)
+  created_at?: string;
+}
+```
+
+#### Tabla de Base de Datos
 
 ```sql
+-- Tabla usuarios: Define el rol base
 CREATE TABLE usuarios (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(100) NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
   telefono VARCHAR(20),
   password VARCHAR(255) NOT NULL,
-  foto_perfil LONGTEXT,              -- Base64 de la imagen
-  es_conductor BOOLEAN DEFAULT FALSE,
-  ciudad VARCHAR(100),
+  foto_perfil LONGTEXT,
+  es_conductor BOOLEAN DEFAULT FALSE,  -- ROL PRINCIPAL
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla conductores: Detalles adicionales solo para conductores
+CREATE TABLE conductores (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  usuario_id INT NOT NULL,              -- FK a usuarios
+  modelo_auto VARCHAR(100),
+  placa_auto VARCHAR(20),
+  licencia VARCHAR(50),
+  calificacion DECIMAL(3, 2) DEFAULT 5.00,
+  estado ENUM('activo', 'inactivo', 'en_viaje') DEFAULT 'inactivo',
+  latitud DECIMAL(10, 8),
+  longitud DECIMAL(11, 8),
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 ```
 
-#### Operaciones CRUD
+### 🔐 Control de Acceso por Rol
 
-| Operación | Método HTTP | Endpoint | Controlador | Vista |
-|-----------|-------------|----------|-------------|-------|
-| **Create** | POST | `/api/register` | `BaseDeDatos.register()` | [app/registro.tsx](app/registro.tsx) |
-| **Read** | GET | `/api/usuarios/:id` | `BaseDeDatos.obtenerUsuario()` | [src/vistas/PerfilVista.tsx](src/vistas/PerfilVista.tsx) |
-| **Update (Perfil)** | PUT | `/api/usuarios/:id` | `BaseDeDatos.actualizarPerfil()` | [src/vistas/PerfilVista.tsx](src/vistas/PerfilVista.tsx) |
-| **Update (Password)** | PUT | `/api/usuarios/:id/password` | `BaseDeDatos.actualizarPassword()` | [src/vistas/ConfiguracionVista.tsx](src/vistas/ConfiguracionVista.tsx) |
-| **Update (Foto)** | PUT | `/api/usuarios/:id/foto` | `BaseDeDatos.actualizarFoto()` | [src/vistas/PerfilVista.tsx](src/vistas/PerfilVista.tsx) |
+#### Tabla de Permisos
 
-#### Ejemplo: Actualizar Perfil
+| Funcionalidad | Pasajero | Conductor | Endpoint | Validación |
+|---------------|----------|-----------|----------|------------|
+| **Solicitar viaje** | ✅ | ✅ | POST `/api/viajes/solicitar` | `usuario_id` válido |
+| **Ver historial** | ✅ | ✅ | GET `/api/viajes/historial/:id` | `usuario_id` coincide |
+| **Aceptar viaje** | ❌ | ✅ | POST `/api/viajes/aceptar` | `es_conductor == 1` |
+| **Ver pendientes** | ❌ | ✅ | GET `/api/viajes/pendientes` | `es_conductor == 1` |
+| **Cambiar estado** | ❌ | ✅ | POST `/api/conductores/estado` | `conductor_id` válido |
+| **Panel conductor** | ❌ | ✅ | Ruta `/conductor` | `user.conductor_id` existe |
+| **Calificar viaje** | ✅ | ✅ | POST `/api/calificaciones` | Participó en el viaje |
+| **Chat** | ✅ | ✅ | GET/POST `/api/mensajes` | Vinculado al viaje |
+| **Agregar pago** | ✅ | ✅ | POST `/api/metodos_pago` | Propio usuario |
+| **Billetera** | ✅ | ✅ (extra) | Ruta `/billetera` | Conductor ve ganancias |
 
-**Frontend (Controlador):**
+### 🚦 Implementación de Control de Acceso
+
+#### 1. Validación en Frontend (React Native)
+
 ```typescript
-actualizarPerfil: async (usuario_id: number, data: {
-  nombre: string;
-  email: string;
-  telefono: string;
-  ciudad?: string;
-}) => {
+// 📍 src/vistas/DashboardVista.tsx
+
+export default function DashboardVista() {
+  const { user } = useAuth();
+  
+  // Mostrar panel según rol
+  if (user?.es_conductor) {
+    return (
+      <View>
+        {/* Dashboard de Pasajero */}
+        <Button title="Solicitar Viaje" onPress={solicitarViaje} />
+        
+        {/* Opción adicional para conductor */}
+        <Button 
+          title="Modo Conductor" 
+          onPress={() => router.push('/conductor')}
+          style={styles.conductorButton}
+        />
+      </View>
+    );
+  }
+  
+  return (
+    <View>
+      {/* Solo dashboard de pasajero */}
+      <Button title="Solicitar Viaje" onPress={solicitarViaje} />
+    </View>
+  );
+}
+```
+
+#### 2. Validación en Vistas Específicas
+
+```typescript
+// 📍 src/vistas/ConductorVista.tsx
+
+export default function ConductorVista() {
+  const { user } = useAuth();
+  
+  // Verificar que tiene perfil de conductor
+  if (!user?.conductor_id) {
+    return (
+      <View>
+        <Text>No tienes acceso a esta sección</Text>
+        <Button title="Volver" onPress={() => router.back()} />
+      </View>
+    );
+  }
+  
+  // Verificar que el rol es correcto
+  if (!user?.es_conductor) {
+    Alert.alert("Error", "No tienes perfil de conductor activo.");
+    router.back();
+    return null;
+  }
+  
+  // Resto del código del panel de conductor
+  return (
+    <View>
+      <Switch value={conectado} onValueChange={toggleConexion} />
+      {/* ... */}
+    </View>
+  );
+}
+```
+
+#### 3. Validación en Controlador
+
+```typescript
+// 📍 src/controladores/BaseDeDatos.ts
+
+actualizarEstadoConductor: async (
+  conductor_id: number,
+  estado: "activo" | "inactivo" | "en_viaje"
+) => {
+  // Validar que conductor_id existe
+  if (!conductor_id) {
+    return { success: false, message: "ID de conductor inválido" };
+  }
+  
   try {
-    const response = await fetch(`${API_URL}/usuarios/${usuario_id}`, {
-      method: "PUT",
+    const response = await fetch(`${API_URL}/conductores/estado`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ conductor_id, estado }),
     });
     return await response.json();
   } catch (error) {
@@ -472,407 +877,330 @@ actualizarPerfil: async (usuario_id: number, data: {
 }
 ```
 
-**Backend (Express):**
+#### 4. Validación en Backend (Server-side)
+
 ```javascript
-app.put("/api/usuarios/:id", (req, res) => {
-  const { nombre, email, telefono, ciudad } = req.body;
-  const query = `
-    UPDATE usuarios 
-    SET nombre = ?, email = ?, telefono = ?, ciudad = ? 
-    WHERE id = ?
-  `;
+// 📍 backend/server.js
+
+// Middleware de autenticación (Recomendado)
+const verificarConductor = (req, res, next) => {
+  const { conductor_id } = req.body;
+  
+  // Verificar que conductor existe y es válido
+  db.execute(
+    "SELECT c.*, u.es_conductor FROM conductores c JOIN usuarios u ON c.usuario_id = u.id WHERE c.id = ?",
+    [conductor_id],
+    (err, results) => {
+      if (err || results.length === 0) {
+        return res.status(403).json({ 
+          success: false, 
+          message: "No autorizado" 
+        });
+      }
+      
+      if (!results[0].es_conductor) {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Usuario no es conductor" 
+        });
+      }
+      
+      req.conductor = results[0];
+      next();
+    }
+  );
+};
+
+// Aplicar middleware a rutas de conductor
+app.post("/api/conductores/estado", verificarConductor, (req, res) => {
+  const { estado } = req.body;
+  const conductor = req.conductor;
   
   db.execute(
-    query,
-    [nombre, email, telefono, ciudad, req.params.id],
-    (err, result) => {
+    "UPDATE conductores SET estado = ? WHERE id = ?",
+    [estado, conductor.id],
+    (err) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, message: "Perfil actualizado" });
+      res.json({ success: true, message: "Estado actualizado" });
     }
   );
 });
-```
 
-**Vista (PerfilVista):**
-```typescript
-const guardarCambios = async () => {
-  const result = await BaseDeDatos.actualizarPerfil(user.id, {
-    nombre: nombreEditado,
-    email: emailEditado,
-    telefono: telefonoEditado,
-    ciudad: ciudadEditada
-  });
-  
-  if (result.success) {
-    await updateUser({ nombre: nombreEditado, email: emailEditado });
-    Alert.alert("Éxito", "Perfil actualizado correctamente");
-  } else {
-    Alert.alert("Error", result.message);
-  }
-};
-```
-
-### 🔷 2. MÓDULO DE VIAJES
-
-#### Estructura de la Tabla
-
-```sql
-CREATE TABLE viajes (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  usuario_id INT NOT NULL,
-  conductor_id INT,
-  origen VARCHAR(255) NOT NULL,
-  destino VARCHAR(255) NOT NULL,
-  precio_estimado DECIMAL(10, 2),
-  precio_final DECIMAL(10, 2),
-  tipo ENUM('viaje', 'envio', 'reserva', 'alquiler') DEFAULT 'viaje',
-  estado ENUM('solicitado', 'aceptado', 'en_curso', 'completado', 'cancelado'),
-  detalles TEXT,                      -- JSON con info adicional
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-  FOREIGN KEY (conductor_id) REFERENCES conductores(id)
-);
-```
-
-#### Operaciones CRUD
-
-| Operación | Endpoint | Descripción | Usuario |
-|-----------|----------|-------------|---------|
-| **Create** | POST `/api/viajes/solicitar` | Crear nueva solicitud de viaje | Pasajero |
-| **Read (Historial)** | GET `/api/viajes/historial/:usuario_id` | Obtener viajes pasados del usuario | Pasajero |
-| **Read (Pendientes)** | GET `/api/viajes/pendientes` | Viajes sin conductor asignado | Conductor |
-| **Read (Activos)** | GET `/api/viajes/activos/:conductor_id` | Viajes en curso del conductor | Conductor |
-| **Update (Estado)** | PUT `/api/viajes/:id/estado` | Cambiar estado del viaje | Ambos |
-| **Update (Cancelar)** | PUT `/api/viajes/:id/cancelar` | Cancelar viaje | Ambos |
-
-#### Flujo Completo de un Viaje
-
-```
-1. CREATE - Solicitar Viaje (Pasajero)
-   ↓
-   POST /api/viajes/solicitar
-   {
-     usuario_id: 1,
-     origen: "Av. Cristo Redentor",
-     destino: "Mall Ventura",
-     precio_estimado: 15.00,
-     tipo: "viaje"
-   }
-   ↓
-   Backend busca conductor cercano (Fórmula Haversine)
-   ↓
-   INSERT INTO viajes + Asignar conductor_id
-   ↓
-   Response: { viaje_id: 25, conductor_id: 3, estado: "aceptado" }
-
-2. READ - Ver Detalles (Ambos)
-   ↓
-   GET /api/viajes/25
-   ↓
-   SELECT con JOIN para obtener datos del pasajero y conductor
-
-3. UPDATE - Cambiar Estado
-   ↓
-   PUT /api/viajes/25/estado
-   { estado: "en_curso" }
-   ↓
-   UPDATE viajes SET estado = 'en_curso' WHERE id = 25
-
-4. UPDATE - Completar Viaje
-   ↓
-   PUT /api/viajes/25/estado
-   { estado: "completado", precio_final: 18.50 }
-   ↓
-   UPDATE + Notificar al pasajero
-
-5. CREATE - Calificar
-   ↓
-   POST /api/calificaciones
-   { viaje_id: 25, puntaje: 5, comentario: "Excelente servicio" }
-```
-
-#### Ejemplo: Solicitar Viaje
-
-**Controlador (Frontend):**
-```typescript
-solicitarViaje: async (
-  usuario_id: number,
-  origen: string,
-  destino: string,
-  precio: number,
-  tipo: "viaje" | "envio" | "reserva" | "alquiler" = "viaje",
-  detalles: any = null,
-  latitud?: number,
-  longitud?: number
-) => {
-  try {
-    const response = await fetch(`${API_URL}/viajes/solicitar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        usuario_id,
-        origen,
-        destino,
-        precio_estimado: precio,
-        tipo,
-        detalles: detalles ? JSON.stringify(detalles) : null,
-        latitud,
-        longitud
-      })
-    });
-    return await response.json();
-  } catch (error) {
-    return { success: false, message: "Error de conexión" };
-  }
-}
-```
-
-**Backend:**
-```javascript
-app.post("/api/viajes/solicitar", (req, res) => {
-  const { usuario_id, origen, destino, precio_estimado, tipo, detalles, latitud, longitud } = req.body;
-
-  // Buscar conductor más cercano (Fórmula de Haversine)
-  const findDriverQuery = `
-    SELECT id, 
-    (6371 * acos(cos(radians(?)) * cos(radians(latitud)) * 
-     cos(radians(longitud) - radians(?)) + 
-     sin(radians(?)) * sin(radians(latitud)))) AS distance 
-    FROM conductores 
-    WHERE estado = 'activo' 
-    ORDER BY distance ASC 
-    LIMIT 1
+// Validar viajes pendientes solo para conductores
+app.get("/api/viajes/pendientes", (req, res) => {
+  // En producción, validar con JWT que es conductor
+  const query = `
+    SELECT v.*, u.nombre as pasajero_nombre 
+    FROM viajes v 
+    JOIN usuarios u ON v.usuario_id = u.id 
+    WHERE v.estado = "solicitado"
   `;
-
-  db.execute(findDriverQuery, [latitud, longitud, latitud], (err, drivers) => {
-    const conductor_id = drivers.length > 0 ? drivers[0].id : null;
-    const estado = conductor_id ? "aceptado" : "solicitado";
-
-    const insertQuery = `
-      INSERT INTO viajes (usuario_id, conductor_id, origen, destino, precio_estimado, estado, tipo, detalles) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    db.execute(
-      insertQuery,
-      [usuario_id, conductor_id, origen, destino, precio_estimado, estado, tipo, detalles],
-      (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({
-          success: true,
-          viaje_id: result.insertId,
-          conductor_id,
-          message: conductor_id ? "Viaje asignado" : "Buscando conductor..."
-        });
-      }
-    );
+  
+  db.execute(query, (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true, viajes: results });
   });
 });
 ```
 
-### 🔷 3. MÓDULO DE MÉTODOS DE PAGO
+### 🎯 Casos de Uso por Rol
 
-#### Estructura de la Tabla
-
-```sql
-CREATE TABLE metodos_pago (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  usuario_id INT NOT NULL,
-  tipo ENUM('tarjeta', 'efectivo', 'digital') DEFAULT 'tarjeta',
-  marca VARCHAR(50),                  -- Visa, Mastercard, etc.
-  ultimos_digitos VARCHAR(4),
-  token_pago VARCHAR(255),           -- Token de pasarela de pago
-  principal BOOLEAN DEFAULT FALSE,
-  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-);
-```
-
-#### Operaciones CRUD
-
-| Operación | Método | Endpoint | Descripción |
-|-----------|--------|----------|-------------|
-| **Create** | POST | `/api/metodos_pago` | Agregar nueva tarjeta/método |
-| **Read** | GET | `/api/metodos_pago/:usuario_id` | Listar métodos del usuario |
-| **Delete** | DELETE | `/api/metodos_pago/:id` | Eliminar método de pago |
-
-**Ejemplo: Agregar Método de Pago**
+#### Caso 1: Usuario Pasajero Solicita Viaje
 
 ```typescript
-// Frontend
-const agregarTarjeta = async () => {
-  const result = await BaseDeDatos.agregarMetodoPago({
-    usuario_id: user.id,
-    tipo: "tarjeta",
-    marca: "Visa",
-    ultimos_digitos: "4242",
-    token_pago: "tok_visa_4242"  // Generado por Stripe/PayPal
+// ✅ PERMITIDO
+const { user } = useAuth();  // user.es_conductor = 0
+
+const resultado = await BaseDeDatos.solicitarViaje(
+  user.id,
+  origen,
+  destino,
+  precio
+);
+
+// Backend procesa normalmente
+// ✅ Viaje creado con éxito
+```
+
+#### Caso 2: Pasajero Intenta Acceder al Panel de Conductor
+
+```typescript
+// ❌ BLOQUEADO EN FRONTEND
+const { user } = useAuth();  // user.es_conductor = 0
+
+if (!user.conductor_id) {
+  // No se muestra el botón "Modo Conductor"
+  return null;
+}
+
+// Si intenta navegar directamente
+router.push('/conductor');
+
+// ConductorVista.tsx detecta y bloquea
+if (!user?.conductor_id) {
+  Alert.alert("Acceso denegado");
+  router.back();
+}
+```
+
+#### Caso 3: Conductor Acepta Viaje
+
+```typescript
+// ✅ PERMITIDO
+const { user } = useAuth();  // user.es_conductor = 1, conductor_id = 5
+
+const resultado = await BaseDeDatos.aceptarViaje(viaje_id, user.conductor_id);
+
+// Backend valida:
+// 1. conductor_id existe
+// 2. Viaje está disponible
+// 3. Actualiza BD
+// ✅ Viaje aceptado
+```
+
+#### Caso 4: Conductor Cambia su Estado
+
+```typescript
+// ✅ PERMITIDO
+const { user } = useAuth();  // user.conductor_id = 5
+
+const resultado = await BaseDeDatos.actualizarEstadoConductor(
+  user.conductor_id,
+  "activo"
+);
+
+// Backend actualiza tabla conductores
+// UPDATE conductores SET estado = 'activo' WHERE id = 5
+// ✅ Estado actualizado
+```
+
+### 📊 Matriz de Permisos Detallada
+
+| Acción | Pasajero | Conductor | Validación Frontend | Validación Backend |
+|--------|----------|-----------|--------------------|--------------------|
+| Login | ✅ | ✅ | Email/Password | Credenciales en BD |
+| Registro | ✅ | ✅ | Campos requeridos | Email único |
+| Dashboard | ✅ | ✅ | Autenticado | N/A |
+| Solicitar viaje | ✅ | ✅ | `user.id` existe | `usuario_id` válido |
+| Ver historial | ✅ | ✅ | Autenticado | Propios viajes |
+| Calificar viaje | ✅ | ✅ | Participó en viaje | Viaje completado |
+| Panel conductor | ❌ | ✅ | `user.conductor_id` | `es_conductor == 1` |
+| Ver pendientes | ❌ | ✅ | `user.conductor_id` | Estado activo |
+| Aceptar viaje | ❌ | ✅ | `user.conductor_id` | Viaje disponible |
+| Cambiar estado | ❌ | ✅ | `user.conductor_id` | Conductor válido |
+| Actualizar ubicación | ❌ | ✅ | `user.conductor_id` | GPS activo |
+| Ver ganancias | ❌ | ✅ | `user.es_conductor` | Viajes propios |
+
+### 🔄 Cambio de Rol Dinámico
+
+```typescript
+// Convertir pasajero en conductor
+const convertirAConductor = async (usuario_id: number) => {
+  // 1. Actualizar campo es_conductor
+  await db.execute(
+    "UPDATE usuarios SET es_conductor = 1 WHERE id = ?",
+    [usuario_id]
+  );
+  
+  // 2. Crear registro en tabla conductores
+  const result = await db.execute(
+    "INSERT INTO conductores (usuario_id, estado) VALUES (?, 'inactivo')",
+    [usuario_id]
+  );
+  
+  const conductor_id = result.insertId;
+  
+  // 3. Actualizar AuthContext
+  await updateUser({ 
+    es_conductor: 1, 
+    conductor_id: conductor_id 
   });
   
-  if (result.success) {
-    Alert.alert("Éxito", "Tarjeta agregada correctamente");
-    cargarMetodos();
-  }
+  return { success: true, conductor_id };
 };
 ```
 
-### 🔷 4. MÓDULO DE LUGARES GUARDADOS
-
-#### Estructura de la Tabla
-
-```sql
-CREATE TABLE lugares_guardados (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  usuario_id INT NOT NULL,
-  nombre VARCHAR(50) NOT NULL,       -- "Casa", "Trabajo", "Gimnasio"
-  direccion VARCHAR(255) NOT NULL,
-  latitud DECIMAL(10, 8),
-  longitud DECIMAL(11, 8),
-  icono VARCHAR(50),
-  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-);
-```
-
-#### Operaciones CRUD
+### 🛡️ Mejores Prácticas de Seguridad
 
 ```typescript
-// CREATE
-await BaseDeDatos.guardarLugar(user.id, "Casa", "Av. Principal 123");
+// ✅ 1. NUNCA confiar solo en validación frontend
+// Backend SIEMPRE debe validar permisos
 
-// READ
-const lugares = await BaseDeDatos.obtenerLugares(user.id);
+// ❌ MAL (Solo frontend)
+if (user.es_conductor) {
+  // Mostrar panel conductor
+}
 
-// DELETE
-await BaseDeDatos.eliminarLugar(lugar_id);
+// ✅ BIEN (Frontend + Backend)
+// Frontend
+if (user.es_conductor) {
+  // Mostrar panel
+}
+
+// Backend
+app.get("/api/viajes/pendientes", verificarToken, verificarConductor, (req, res) => {
+  // Solo llega aquí si es conductor válido
+});
+
+// ✅ 2. Usar JWT con rol incluido
+const token = jwt.sign({
+  userId: user.id,
+  role: user.es_conductor ? 'conductor' : 'pasajero',
+  conductorId: user.conductor_id
+}, SECRET_KEY);
+
+// ✅ 3. Middleware de autorización
+const requireRole = (role) => {
+  return (req, res, next) => {
+    if (req.user.role !== role) {
+      return res.status(403).json({ message: "No autorizado" });
+    }
+    next();
+  };
+};
+
+app.post("/api/viajes/aceptar", requireRole('conductor'), (req, res) => {
+  // Solo conductores llegan aquí
+});
 ```
-
-### 🔷 5. MÓDULO DE MENSAJES (CHAT)
-
-#### Estructura de la Tabla
-
-```sql
-CREATE TABLE mensajes (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  viaje_id INT NOT NULL,
-  usuario_id INT NOT NULL,
-  mensaje TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (viaje_id) REFERENCES viajes(id),
-  FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-);
-```
-
-#### Operaciones
-
-```typescript
-// CREATE - Enviar mensaje
-await BaseDeDatos.enviarMensaje(viaje_id, user.id, "Ya estoy llegando");
-
-// READ - Obtener historial
-const mensajes = await BaseDeDatos.obtenerMensajes(viaje_id);
-```
-
-### 📊 Resumen de Endpoints RESTful
-
-| Recurso | GET | POST | PUT | DELETE |
-|---------|-----|------|-----|--------|
-| `/api/usuarios` | ✅ Obtener perfil | ✅ Registro | ✅ Actualizar | ❌ |
-| `/api/viajes` | ✅ Historial | ✅ Solicitar | ✅ Cambiar estado | ❌ |
-| `/api/conductores` | ✅ Listar | ✅ Crear perfil | ✅ Estado | ❌ |
-| `/api/metodos_pago` | ✅ Listar | ✅ Agregar | ❌ | ✅ Eliminar |
-| `/api/lugares` | ✅ Listar | ✅ Guardar | ❌ | ✅ Eliminar |
-| `/api/mensajes` | ✅ Historial | ✅ Enviar | ❌ | ❌ |
-| `/api/calificaciones` | ✅ Ver | ✅ Calificar | ❌ | ❌ |
-| `/api/notificaciones` | ✅ Obtener | ❌ | ✅ Marcar leída | ❌ |
 
 ---
 
-## 6.7 GESTIÓN DE SESIONES DE USUARIO
+## 7.4 PROTECCIÓN DE LA INFORMACIÓN LOCAL
 
-La gestión de sesiones permite mantener al usuario autenticado a través de múltiples sesiones de la aplicación, garantizando que no tenga que iniciar sesión cada vez que abre la app. Se implementa mediante una combinación de Context API, AsyncStorage local y persistencia en base de datos, proporcionando una experiencia fluida y segura.
+La protección de datos en el dispositivo móvil es crucial para salvaguardar la información sensible del usuario. GoRide implementa múltiples capas de seguridad local utilizando AsyncStorage, validación de datos y prácticas recomendadas de almacenamiento seguro, aunque con oportunidades de mejora hacia soluciones más robustas.
 
-### 🔄 Componentes del Sistema de Sesiones
-
-| Componente | Tecnología | Función | Persistencia |
-|------------|------------|---------|--------------|
-| **AuthContext** | React Context API | Estado global de autenticación | En memoria (volátil) |
-| **AsyncStorage** | @react-native-async-storage | Almacenamiento local en dispositivo | Persistente |
-| **Tabla sessions** | MySQL | Registro de sesiones activas (opcional) | Base de datos |
-| **useAuth Hook** | Custom Hook | Interfaz para acceder al contexto | N/A |
-
-### 📱 Ciclo de Vida de una Sesión
+### 🗄️ Almacenamiento Local con AsyncStorage
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    INICIO DE LA APLICACIÓN                      │
+│              ARQUITECTURA DE ALMACENAMIENTO LOCAL               │
 └─────────────────────────────────────────────────────────────────┘
 
-App se monta
-    │
-    ▼
-┌───────────────────────────────────────┐
-│ AuthProvider - useEffect()            │
-│ Ejecuta checkUser()                   │
-└───────────────┬───────────────────────┘
-                │
-                ▼
-┌───────────────────────────────────────┐
-│ AsyncStorage.getItem("user_session")  │
-└───────────────┬───────────────────────┘
-                │
-        ┌───────┴───────┐
-        │               │
-        ▼               ▼
-    Existe          No Existe
-        │               │
-        ▼               ▼
-┌─────────────┐   ┌─────────────┐
-│ Parse JSON  │   │ Mantener    │
-│ Setear user │   │ user = null │
-└──────┬──────┘   └──────┬──────┘
-       │                 │
-       ▼                 ▼
-┌─────────────┐   ┌─────────────┐
-│ isLoading = │   │ isLoading = │
-│    false    │   │    false    │
-└──────┬──────┘   └──────┬──────┘
-       │                 │
-       ▼                 ▼
-┌─────────────┐   ┌─────────────┐
-│ Navegar a   │   │ Mostrar     │
-│ Dashboard   │   │ Login       │
-└─────────────┘   └─────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│               React Native App (Memoria RAM)                │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  AuthContext (Estado Global)                        │   │
+│  │  • user: User | null                                │   │
+│  │  • isLoading: boolean                               │   │
+│  └────────────────────┬────────────────────────────────┘   │
+│                       │ setUser() / getUser()              │
+│                       │                                    │
+└───────────────────────┼────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│          AsyncStorage (@react-native-async-storage)         │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Almacenamiento Clave-Valor                         │   │
+│  │  ┌──────────────────────────────────────────────┐   │   │
+│  │  │ Key: "user_session"                          │   │   │
+│  │  │ Value: JSON.stringify({                     │   │   │
+│  │  │   id: 1,                                     │   │   │
+│  │  │   nombre: "Juan",                            │   │   │
+│  │  │   email: "juan@mail.com",                    │   │   │
+│  │  │   es_conductor: 0,                           │   │   │
+│  │  │   foto_perfil: "base64...",                  │   │   │
+│  │  │   conductor_id: null                         │   │   │
+│  │  │ })                                           │   │   │
+│  │  └──────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────┘   │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│           Sistema de Archivos del Dispositivo               │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Android: /data/data/[package]/files/RCTAsyncLocalStorage│
+│  │ iOS: ~/Library/Preferences/[bundle-id]              │   │
+│  │                                                      │   │
+│  │ Archivo: manifest.json + archivos de datos         │   │
+│  │ Permisos: Solo la app puede acceder (sandbox)      │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 💾 Persistencia con AsyncStorage
+### 📊 Datos Almacenados Localmente
 
-#### Implementación
+#### Tabla de Información Persistida
+
+| Dato | Tipo | Sensibilidad | Almacenamiento | Cifrado | Tiempo de Vida |
+|------|------|--------------|----------------|---------|----------------|
+| **ID de usuario** | number | 🟡 Media | AsyncStorage | ❌ No | Hasta logout |
+| **Nombre completo** | string | 🟡 Media | AsyncStorage | ❌ No | Hasta logout |
+| **Email** | string | 🟠 Alta | AsyncStorage | ❌ No | Hasta logout |
+| **Teléfono** | string | 🟠 Alta | AsyncStorage | ❌ No | Hasta logout |
+| **Foto de perfil** | Base64 | 🟢 Baja | AsyncStorage | ❌ No | Hasta logout |
+| **Rol (es_conductor)** | boolean | 🟡 Media | AsyncStorage | ❌ No | Hasta logout |
+| **Conductor ID** | number \| null | 🟡 Media | AsyncStorage | ❌ No | Hasta logout |
+| **Contraseña** | string | 🔴 Crítica | ❌ NUNCA | N/A | N/A |
+| **Token sesión** | string | 🔴 Crítica | ⚠️ TODO | ✅ Sí | 7 días |
+
+### 🔐 Implementación Actual de Seguridad
+
+#### Código de Almacenamiento
 
 ```typescript
-// 📍 Ubicación: src/context/AuthContext.tsx
+// 📍 src/context/AuthContext.tsx
 
-// 1. GUARDAR SESIÓN (al hacer login o registro)
+// GUARDAR sesión
 const login = async (email: string, password: string) => {
-  try {
-    const result = await BaseDeDatos.login(email, password);
+  const result = await BaseDeDatos.login(email, password);
+  
+  if (result.success && result.user) {
+    setUser(result.user);
     
-    if (result.success && result.user) {
-      // Guardar en estado
-      setUser(result.user);
-      
-      // Persistir en AsyncStorage
-      await AsyncStorage.setItem(
-        "user_session",
-        JSON.stringify(result.user)
-      );
-      
-      return { success: true };
-    }
-  } catch (error) {
-    return { success: false, message: "Error de conexión" };
+    // Persistir en AsyncStorage
+    await AsyncStorage.setItem(
+      "user_session",              // Key
+      JSON.stringify(result.user)  // Value (JSON)
+    );
+    
+    return { success: true };
   }
 };
 
-// 2. RECUPERAR SESIÓN (al iniciar la app)
+// RECUPERAR sesión
 const checkUser = async () => {
   try {
     const storedUser = await AsyncStorage.getItem("user_session");
@@ -880,293 +1208,387 @@ const checkUser = async () => {
     if (storedUser) {
       const userData = JSON.parse(storedUser);
       setUser(userData);
-      console.log("Sesión restaurada:", userData.email);
     }
   } catch (error) {
     console.error("Error al recuperar sesión:", error);
   } finally {
-    setIsLoading(false);  // Siempre terminar el loading
+    setIsLoading(false);
   }
 };
 
-// 3. ACTUALIZAR SESIÓN (al cambiar datos)
+// ELIMINAR sesión
+const logout = async () => {
+  setUser(null);
+  await AsyncStorage.removeItem("user_session");
+};
+
+// ACTUALIZAR sesión
 const updateUser = async (userData: Partial<User>) => {
   if (user) {
     const updatedUser = { ...user, ...userData };
-    
-    // Actualizar estado
     setUser(updatedUser);
-    
-    // Sincronizar AsyncStorage
     await AsyncStorage.setItem(
       "user_session",
       JSON.stringify(updatedUser)
     );
   }
 };
-
-// 4. ELIMINAR SESIÓN (al hacer logout)
-const logout = async () => {
-  // Limpiar estado
-  setUser(null);
-  
-  // Eliminar de AsyncStorage
-  await AsyncStorage.removeItem("user_session");
-  
-  // Opcional: Notificar al servidor
-  // await BaseDeDatos.cerrarSesion(user.id);
-};
 ```
 
-### 🔐 Estructura de Datos de Sesión
+### 🛡️ Nivel de Seguridad Actual
 
-#### Datos Almacenados
+#### Análisis de Vulnerabilidades
 
-```typescript
-// Formato en AsyncStorage
-{
-  "id": 1,
-  "nombre": "Juan Pérez",
-  "email": "juan@example.com",
-  "telefono": "12345678",
-  "es_conductor": 0,
-  "foto_perfil": "data:image/jpeg;base64,/9j/4AAQ...",
-  "conductor_id": null,
-  "ciudad": "Santa Cruz"
-}
-```
+| Aspecto | Estado Actual | Nivel de Riesgo | Impacto |
+|---------|---------------|-----------------|---------|
+| **Cifrado de datos** | Sin cifrado | 🔴 Alto | Datos legibles en texto plano |
+| **Contraseñas almacenadas** | ✅ No se almacenan | 🟢 Ninguno | Sin riesgo |
+| **Email y teléfono** | Sin cifrar | 🟠 Medio | Exposición de PII |
+| **Tokens de sesión** | ❌ No implementado | 🟡 Medio | Sin expiración automática |
+| **Validación de integridad** | ❌ No | 🟠 Medio | Posible manipulación |
+| **Backup de datos** | Por defecto del OS | 🟡 Medio | Puede incluirse en backups |
+| **Root/Jailbreak detection** | ❌ No | 🟠 Medio | Vulnerable en dispositivos comprometidos |
 
-#### Tabla de Propiedades
+### 🔒 Mejoras de Seguridad Recomendadas
 
-| Campo | Tipo | Descripción | ¿Sensible? |
-|-------|------|-------------|-----------|
-| `id` | number | ID único del usuario | No |
-| `nombre` | string | Nombre completo | No |
-| `email` | string | Correo electrónico | ⚠️ Sí |
-| `telefono` | string | Número de teléfono | ⚠️ Sí |
-| `es_conductor` | 0 \| 1 | Rol del usuario | No |
-| `foto_perfil` | string (Base64) | Imagen de perfil | No |
-| `conductor_id` | number \| null | ID de conductor (si aplica) | No |
-| `ciudad` | string | Ciudad de residencia | No |
-
-### 🛡️ Seguridad de Sesiones
-
-#### Medidas Implementadas
-
-| Medida | Implementación | Nivel |
-|--------|----------------|-------|
-| **Almacenamiento cifrado** | AsyncStorage sin cifrado adicional | ⚠️ Básico |
-| **Validación de sesión** | Solo validación local | ⚠️ Básico |
-| **Expiración** | No implementada | ❌ Ninguno |
-| **Revocación remota** | No implementada | ❌ Ninguno |
-
-#### Mejoras Recomendadas
+#### 1. Expo SecureStore (Cifrado Nativo)
 
 ```typescript
-// ✅ 1. Cifrado con expo-secure-store
+// ✅ RECOMENDADO: Usar SecureStore para datos sensibles
 import * as SecureStore from 'expo-secure-store';
 
-// Guardar
-await SecureStore.setItemAsync('user_session', JSON.stringify(user));
-
-// Recuperar
-const session = await SecureStore.getItemAsync('user_session');
-
-// ✅ 2. Token de sesión con expiración
-const token = jwt.sign(
-  { userId: user.id },
-  SECRET_KEY,
-  { expiresIn: '7d' }  // Expira en 7 días
-);
-
-// ✅ 3. Validación periódica con el servidor
-const validateSession = async () => {
-  const token = await AsyncStorage.getItem('token');
-  const response = await fetch(`${API_URL}/validate-session`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  
-  if (!response.ok) {
-    // Token inválido o expirado
-    await logout();
+// Guardar con cifrado nativo
+const saveSecureSession = async (user: User) => {
+  try {
+    // iOS: Keychain
+    // Android: EncryptedSharedPreferences
+    await SecureStore.setItemAsync(
+      'secure_user_session',
+      JSON.stringify(user)
+    );
+  } catch (error) {
+    console.error('Error al guardar sesión segura:', error);
   }
 };
 
-// ✅ 4. Tabla de sesiones en BD
-CREATE TABLE sesiones (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  usuario_id INT NOT NULL,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  dispositivo VARCHAR(100),
-  ip_address VARCHAR(45),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  expires_at TIMESTAMP,
-  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-);
+// Recuperar
+const getSecureSession = async () => {
+  try {
+    const session = await SecureStore.getItemAsync('secure_user_session');
+    return session ? JSON.parse(session) : null;
+  } catch (error) {
+    console.error('Error al recuperar sesión:', error);
+    return null;
+  }
+};
+
+// Eliminar
+const deleteSecureSession = async () => {
+  await SecureStore.deleteItemAsync('secure_user_session');
+};
 ```
 
-### 📊 Gestión de Múltiples Sesiones
+**Ventajas de SecureStore:**
+- ✅ Cifrado nativo del OS (Keychain en iOS, Keystore en Android)
+- ✅ Protegido contra acceso no autorizado
+- ✅ No incluido en backups del dispositivo
+- ✅ Requiere autenticación biométrica (opcional)
 
-#### Escenarios Comunes
+#### 2. Tokens JWT con Expiración
 
-| Escenario | Comportamiento Actual | Comportamiento Ideal |
-|-----------|----------------------|----------------------|
-| **Mismo usuario en 2 dispositivos** | Ambas sesiones activas independientes | Sincronización de datos |
-| **Cambio de contraseña** | Sesiones anteriores siguen activas | Cerrar todas las sesiones |
-| **Desinstalación de app** | Sesión persiste en AsyncStorage | Eliminar automáticamente |
-| **Cierre forzado** | Sesión se mantiene | Mantener sesión |
+```typescript
+// Backend: Generar token con expiración
+const jwt = require('jsonwebtoken');
 
-#### Implementación de Múltiples Dispositivos
-
-```javascript
-// Backend: Tabla de sesiones
 app.post("/api/login", (req, res) => {
-  const { email, password, dispositivo } = req.body;
-  
-  // Validar credenciales...
+  // Validar usuario...
   
   if (userValid) {
-    // Generar token único
-    const token = generateToken();
+    const token = jwt.sign(
+      { 
+        userId: user.id,
+        role: user.es_conductor ? 'conductor' : 'pasajero'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }  // Expira en 7 días
+    );
     
-    // Registrar sesión
-    db.execute(
-      "INSERT INTO sesiones (usuario_id, token, dispositivo, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))",
-      [user.id, token, dispositivo],
-      (err) => {
-        res.json({ success: true, token, user });
-      }
+    res.json({
+      success: true,
+      user: { ...user, password: undefined },
+      token: token,
+      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000)
+    });
+  }
+});
+
+// Frontend: Almacenar y validar token
+const login = async (email: string, password: string) => {
+  const result = await BaseDeDatos.login(email, password);
+  
+  if (result.success) {
+    // Guardar token cifrado
+    await SecureStore.setItemAsync('auth_token', result.token);
+    await SecureStore.setItemAsync('token_expires', result.expiresAt.toString());
+    
+    setUser(result.user);
+  }
+};
+
+// Validar expiración al iniciar app
+const checkTokenExpiration = async () => {
+  const expiresAt = await SecureStore.getItemAsync('token_expires');
+  
+  if (expiresAt && Date.now() > parseInt(expiresAt)) {
+    // Token expirado, forzar logout
+    await logout();
+    Alert.alert('Sesión expirada', 'Por favor inicia sesión nuevamente');
+  }
+};
+```
+
+#### 3. Validación de Integridad
+
+```typescript
+// Generar hash de los datos para detectar manipulación
+import CryptoJS from 'crypto-js';
+
+const saveWithIntegrity = async (key: string, data: any) => {
+  const dataString = JSON.stringify(data);
+  
+  // Generar hash SHA256
+  const hash = CryptoJS.SHA256(dataString).toString();
+  
+  // Guardar datos + hash
+  await AsyncStorage.setItem(key, dataString);
+  await AsyncStorage.setItem(`${key}_hash`, hash);
+};
+
+const getWithIntegrity = async (key: string) => {
+  const dataString = await AsyncStorage.getItem(key);
+  const storedHash = await AsyncStorage.getItem(`${key}_hash`);
+  
+  if (!dataString || !storedHash) return null;
+  
+  // Verificar integridad
+  const computedHash = CryptoJS.SHA256(dataString).toString();
+  
+  if (computedHash !== storedHash) {
+    console.error('⚠️ Datos manipulados detectados');
+    await AsyncStorage.removeItem(key);
+    await AsyncStorage.removeItem(`${key}_hash`);
+    return null;
+  }
+  
+  return JSON.parse(dataString);
+};
+```
+
+#### 4. Detección de Dispositivos Comprometidos
+
+```typescript
+// Instalar: expo-device
+import * as Device from 'expo-device';
+
+const checkDeviceSecurity = async () => {
+  // Verificar si el dispositivo está rooteado/jailbroken
+  // (Requiere librerías nativas adicionales como react-native-jail-monkey)
+  
+  const isEmulator = !Device.isDevice;
+  
+  if (isEmulator) {
+    console.warn('⚠️ Ejecutándose en emulador');
+  }
+  
+  // En producción, podríamos bloquear funcionalidades sensibles
+  if (isDeviceCompromised()) {
+    Alert.alert(
+      'Advertencia de Seguridad',
+      'Tu dispositivo puede estar comprometido. Algunas funciones estarán limitadas.'
     );
   }
-});
-
-// Cerrar sesión en dispositivo específico
-app.post("/api/logout", (req, res) => {
-  const { token } = req.body;
-  
-  db.execute(
-    "DELETE FROM sesiones WHERE token = ?",
-    [token],
-    (err) => {
-      res.json({ success: true });
-    }
-  );
-});
-
-// Cerrar todas las sesiones del usuario
-app.post("/api/logout-all", (req, res) => {
-  const { usuario_id } = req.body;
-  
-  db.execute(
-    "DELETE FROM sesiones WHERE usuario_id = ?",
-    [usuario_id],
-    (err) => {
-      res.json({ success: true, message: "Todas las sesiones cerradas" });
-    }
-  );
-});
+};
 ```
 
-### 🔄 Sincronización de Datos entre Sesiones
+### 📊 Comparación de Métodos de Almacenamiento
+
+| Método | Cifrado | Plataforma | Velocidad | Capacidad | Uso Recomendado |
+|--------|---------|-----------|-----------|-----------|-----------------|
+| **AsyncStorage** | ❌ No | iOS, Android, Web | ⚡ Rápido | ~6MB | Datos no sensibles |
+| **SecureStore** | ✅ Nativo | iOS, Android | ⚡ Rápido | 2KB por ítem | Tokens, credenciales |
+| **FileSystem + Cifrado** | ✅ Manual | Todas | 🐌 Lento | Ilimitada | Archivos grandes |
+| **SQLite cifrado** | ✅ Sí | Todas | ⚡ Medio | Ilimitada | Datos estructurados |
+| **Memoria RAM** | ⚠️ Volátil | Todas | ⚡⚡ Muy rápido | Limitada | Datos temporales |
+
+### 🔍 Auditoría de Datos Almacenados
 
 ```typescript
-// Frontend: Polling para cambios
-useEffect(() => {
-  const interval = setInterval(async () => {
-    if (user) {
-      // Verificar si hay cambios en el perfil
-      const updatedUser = await BaseDeDatos.obtenerUsuario(user.id);
+// Herramienta de debugging para ver qué hay en AsyncStorage
+const auditLocalStorage = async () => {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    console.log('📦 Keys almacenadas:', keys);
+    
+    for (const key of keys) {
+      const value = await AsyncStorage.getItem(key);
+      console.log(`🔑 ${key}:`, value?.substring(0, 100));
+    }
+  } catch (error) {
+    console.error('Error en auditoría:', error);
+  }
+};
+
+// Limpiar todo el almacenamiento (útil para testing)
+const clearAllStorage = async () => {
+  await AsyncStorage.clear();
+  console.log('🗑️ AsyncStorage limpiado');
+};
+```
+
+### 🛡️ Mejores Prácticas Implementadas
+
+| Práctica | Estado | Descripción |
+|----------|--------|-------------|
+| ✅ **No guardar contraseñas** | Implementado | Las contraseñas NUNCA se almacenan localmente |
+| ✅ **Logout limpia datos** | Implementado | `removeItem()` al cerrar sesión |
+| ✅ **Try-catch en operaciones** | Implementado | Errores capturados y logueados |
+| ⚠️ **Datos sensibles cifrados** | Pendiente | Migrar a SecureStore |
+| ⚠️ **Tokens con expiración** | Pendiente | Implementar JWT |
+| ⚠️ **Validación de integridad** | Pendiente | Hash de datos críticos |
+| ❌ **Detección de root** | No implementado | Agregar react-native-jail-monkey |
+| ❌ **Biometría** | No implementado | Autenticación adicional con huella/Face ID |
+
+### 🎯 Recomendaciones de Seguridad por Prioridad
+
+#### Prioridad ALTA (Implementar inmediatamente)
+
+1. **Migrar a SecureStore para datos sensibles**
+   ```bash
+   expo install expo-secure-store
+   ```
+
+2. **Implementar JWT con expiración**
+   - Backend: Generar tokens firmados
+   - Frontend: Validar expiración al iniciar app
+
+3. **Cifrar contraseñas en BD (Backend)**
+   ```bash
+   npm install bcrypt
+   ```
+
+#### Prioridad MEDIA (Próximas versiones)
+
+4. **Validación de integridad de datos**
+5. **Rate limiting en backend**
+6. **HTTPS en producción**
+7. **Logging de actividades sospechosas**
+
+#### Prioridad BAJA (Mejoras futuras)
+
+8. **Autenticación biométrica**
+9. **Detección de dispositivos rooteados**
+10. **Encriptación de mensajes de chat**
+
+### 📱 Ejemplo Completo de Implementación Segura
+
+```typescript
+// 📍 src/context/SecureAuthContext.tsx
+
+import * as SecureStore from 'expo-secure-store';
+import CryptoJS from 'crypto-js';
+
+const KEYS = {
+  USER: 'secure_user',
+  TOKEN: 'auth_token',
+  TOKEN_EXPIRES: 'token_expires',
+};
+
+export const SecureAuthProvider = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  
+  // Guardar sesión segura
+  const secureLogin = async (email: string, password: string) => {
+    const result = await BaseDeDatos.login(email, password);
+    
+    if (result.success) {
+      // Guardar token cifrado
+      await SecureStore.setItemAsync(KEYS.TOKEN, result.token);
+      await SecureStore.setItemAsync(
+        KEYS.TOKEN_EXPIRES,
+        result.expiresAt.toString()
+      );
       
-      if (JSON.stringify(updatedUser) !== JSON.stringify(user)) {
-        // Actualizar contexto y AsyncStorage
-        await updateUser(updatedUser);
-        Alert.alert("Actualización", "Tu perfil ha sido actualizado desde otro dispositivo");
+      // Guardar usuario (sin datos sensibles)
+      const { password: _, ...safeUser } = result.user;
+      await SecureStore.setItemAsync(KEYS.USER, JSON.stringify(safeUser));
+      
+      setUser(safeUser);
+      return { success: true };
+    }
+    
+    return { success: false, message: result.message };
+  };
+  
+  // Recuperar sesión segura
+  const checkSecureSession = async () => {
+    try {
+      // Validar expiración
+      const expiresAt = await SecureStore.getItemAsync(KEYS.TOKEN_EXPIRES);
+      if (expiresAt && Date.now() > parseInt(expiresAt)) {
+        await secureLogout();
+        return;
       }
-    }
-  }, 30000);  // Cada 30 segundos
-  
-  return () => clearInterval(interval);
-}, [user]);
-```
-
-### 📱 Uso del Hook useAuth en Componentes
-
-```typescript
-// Cualquier componente puede acceder a la sesión
-import { useAuth } from '../context/AuthContext';
-
-function PerfilVista() {
-  const { user, logout, updateUser, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return <ActivityIndicator />;
-  }
-  
-  if (!user) {
-    return <Text>No has iniciado sesión</Text>;
-  }
-  
-  return (
-    <View>
-      <Text>Bienvenido {user.nombre}</Text>
-      <Text>Email: {user.email}</Text>
       
-      <Button title="Cerrar Sesión" onPress={logout} />
-    </View>
-  );
-}
-```
-
-### 🎯 Ventajas del Sistema Implementado
-
-| Ventaja | Descripción | Beneficio |
-|---------|-------------|-----------|
-| **Persistencia** | Sesión se mantiene entre cierres de app | UX fluida, no re-login constante |
-| **Sincronización** | Cambios se reflejan en AsyncStorage | Datos siempre actualizados |
-| **Centralización** | Un solo punto de acceso (useAuth) | Código limpio y mantenible |
-| **Validación automática** | CheckUser al iniciar app | Seguridad básica |
-| **Logout universal** | Limpia estado y storage simultáneamente | Sin residuos de sesión |
-
-### 🔍 Debugging de Sesiones
-
-```typescript
-// Utilidades para desarrollo
-const SessionDebugger = () => {
-  const { user } = useAuth();
-  
-  const verSesion = async () => {
-    const stored = await AsyncStorage.getItem('user_session');
-    console.log("Sesión en AsyncStorage:", stored);
-    console.log("Sesión en Context:", user);
+      // Recuperar usuario
+      const userString = await SecureStore.getItemAsync(KEYS.USER);
+      if (userString) {
+        setUser(JSON.parse(userString));
+      }
+    } catch (error) {
+      console.error('Error recuperando sesión:', error);
+    }
   };
   
-  const limpiarSesion = async () => {
-    await AsyncStorage.clear();
-    console.log("AsyncStorage limpiado");
+  // Logout seguro
+  const secureLogout = async () => {
+    await SecureStore.deleteItemAsync(KEYS.USER);
+    await SecureStore.deleteItemAsync(KEYS.TOKEN);
+    await SecureStore.deleteItemAsync(KEYS.TOKEN_EXPIRES);
+    setUser(null);
   };
+  
+  useEffect(() => {
+    checkSecureSession();
+  }, []);
   
   return (
-    <View>
-      <Button title="Ver Sesión" onPress={verSesion} />
-      <Button title="Limpiar Sesión" onPress={limpiarSesion} />
-    </View>
+    <AuthContext.Provider value={{ user, secureLogin, secureLogout }}>
+      {children}
+    </AuthContext.Provider>
   );
 };
 ```
 
 ---
 
-## 🚀 Conclusiones
+## 🎯 Conclusiones del Capítulo VII
 
-Las implementaciones de **autenticación**, **CRUD** y **gestión de sesiones** forman la columna vertebral de la aplicación GoRide. El sistema actual proporciona funcionalidad completa para operaciones básicas, con oportunidades claras de mejora en seguridad mediante tokens JWT, hashing de contraseñas y validación de sesiones en servidor.
+La arquitectura y seguridad de GoRide se fundamenta en:
 
-### Próximos Pasos Recomendados
+1. **Arquitectura de tres capas** bien definida (Presentación, Negocio, Datos)
+2. **Controlador centralizado** (`BaseDeDatos.ts`) como gateway único
+3. **Sistema de roles** basado en `es_conductor` con validación en múltiples capas
+4. **Almacenamiento local** con AsyncStorage, con oportunidades de mejora hacia SecureStore
 
-1. **Seguridad:** Implementar bcrypt + JWT
-2. **Validación:** Middleware de autenticación en todas las rutas protegidas
-3. **Monitoreo:** Logging de sesiones activas
-4. **Optimización:** Caché de datos frecuentes
-5. **Testing:** Unit tests para AuthContext y endpoints CRUD
+### Próximos Pasos de Seguridad
+
+- [ ] Migrar a **expo-secure-store**
+- [ ] Implementar **JWT** con expiración
+- [ ] Añadir **bcrypt** para contraseñas
+- [ ] **HTTPS** en producción
+- [ ] **Rate limiting** en endpoints
+- [ ] **Logging** de seguridad
+- [ ] **Autenticación biométrica**
 
 ---
 
