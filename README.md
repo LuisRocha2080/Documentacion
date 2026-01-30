@@ -1,1407 +1,496 @@
-# 🗂️ PromptVault
-
-Sistema web de gestión de prompts con integración multi-provider de IA.
-
----
-
-## 7.7 Estructura del Sistema Web
-
-PromptVault sigue una **arquitectura MVC limpia** con separación de responsabilidades mediante el patrón Repository-Service. La estructura está organizada para facilitar escalabilidad y mantenimiento a largo plazo.
-
-### 📂 Organización de Carpetas Principal
-
-```
-PromptVault/
-├── app/                    # Lógica de aplicación
-│   ├── Http/              # Capa HTTP (Controllers, Middleware, Requests)
-│   ├── Models/            # Modelos Eloquent
-│   ├── Services/          # Lógica de negocio
-│   ├── Repositories/      # Acceso a datos
-│   ├── Policies/          # Autorización
-│   └── Contracts/         # Interfaces
-├── resources/             # Assets frontend
-│   ├── views/            # Plantillas Blade
-│   ├── css/              # Estilos (Tailwind)
-│   └── js/               # JavaScript (Alpine.js)
-├── database/              # Migraciones y seeders
-├── routes/                # Definición de rutas
-├── tests/                 # Tests automatizados
-└── public/                # Assets públicos
-```
-
-### 🏗️ Arquitectura por Capas
-
-| Capa | Responsabilidad | Ejemplos |
-|------|----------------|----------|
-| **Controllers** | Coordinación HTTP y respuestas | `PromptController`, `ChatbotController` |
-| **Services** | Lógica de negocio compleja | `PromptService`, `CalificacionService` |
-| **Repositories** | Queries y acceso a BD | `PromptRepository`, `EtiquetaRepository` |
-| **Models** | Entidades y relaciones | `Prompt`, `User`, `Calificacion` |
-| **Policies** | Reglas de autorización | `PromptPolicy`, `ComentarioPolicy` |
-| **Requests** | Validación de datos | `StorePromptRequest`, `CompartirPromptRequest` |
-
-### 📦 Módulos Principales
-
-#### 1️⃣ Módulo de Prompts
-
-```
-app/Http/Controllers/PromptController.php
-app/Services/PromptService.php
-app/Repositories/PromptRepository.php
-app/Models/Prompt.php
-app/Policies/PromptPolicy.php
-```
-
-**Funciones:** CRUD, versionado, compartir, búsqueda
-
-#### 2️⃣ Módulo de Chatbot IA
-
-```
-app/Http/Controllers/ChatbotController.php
-app/Services/ChatbotService.php
-app/Repositories/
-├── ChatbotClaudeRepository.php
-├── ChatbotGeminiRepository.php
-└── ChatbotGroqRepository.php
-app/Factories/ChatbotRepositoryFactory.php
-```
-
-**Funciones:** Conversación multi-provider, historial
-
-#### 3️⃣ Módulo de Calificaciones
-
-```
-app/Services/CalificacionService.php
-app/Models/Calificacion.php
-```
-
-**Funciones:** Sistema 5 estrellas, promedio, validación única
-
-#### 4️⃣ Módulo de Compartir
-
-```
-app/Services/CompartirService.php
-app/Models/AccesoCompartido.php
-```
-
-**Funciones:** Enlaces temporales, permisos (lectura/edición)
-
-### 🗂️ Estructura de Base de Datos
-
-| Tabla | Propósito | Relaciones |
-|-------|-----------|------------|
-| `users` | Usuarios del sistema | 1:N con prompts, calificaciones |
-| `prompts` | Prompts principales | N:M con etiquetas, 1:N con versiones |
-| `versiones` | Historial de cambios | N:1 con prompts |
-| `calificaciones` | Sistema de rating | N:1 con prompts, users |
-| `comentarios` | Feedback comunitario | N:1 con prompts, users |
-| `etiquetas` | Categorización | N:M con prompts |
-| `accesos_compartidos` | Compartir temporal | N:1 con prompts |
-| `chatbot_conversaciones` | Historial IA | N:1 con users |
-
-### 🔧 Configuración y Servicios
-
-```
-config/
-├── app.php              # Configuración general
-├── database.php         # Conexión BD
-├── services.php         # APIs externas (Claude, Gemini, Groq)
-└── auth.php            # Autenticación
-```
-
-**Servicios Integrados:**
-- **Anthropic Claude** (API REST)
-- **Google Gemini** (AI Studio)
-- **Groq** (LLM rápida)
-
-### 📋 System de Rutas
-
-| Archivo | Propósito |
-|---------|-----------|
-| `web.php` | Rutas públicas y autenticadas |
-| `auth.php` | Login, registro, recuperación |
-| `master-web.php` | Rutas administrativas |
-
----
-
-## 7.8 Descripción de la Estructura de Páginas
-
-El sistema está organizado en **3 áreas principales**: pública, usuario autenticado y administración. Cada área tiene páginas específicas con funcionalidades bien delimitadas.
-
-### 🌐 Mapa de Navegación
-
-```
-┌─────────────────────────────────────────┐
-│          ÁREA PÚBLICA                   │
-├─────────────────────────────────────────┤
-│ • Landing Page                          │
-│ • Login / Registro                      │
-│ • Recuperar Contraseña                  │
-└─────────────────────────────────────────┘
-                  │
-                  │ [Autenticación]
-                  ▼
-┌─────────────────────────────────────────┐
-│      ÁREA DE USUARIO                    │
-├─────────────────────────────────────────┤
-│ • Dashboard                             │
-│ • Mis Prompts                           │
-│ • Crear/Editar Prompt                   │
-│ • Ver Detalle + Versionado              │
-│ • Chat con IA                           │
-│ • Prompts Compartidos Conmigo           │
-│ • Explorar Prompts Públicos             │
-│ • Mi Perfil                             │
-└─────────────────────────────────────────┘
-                  │
-                  │ [Rol Admin]
-                  ▼
-┌─────────────────────────────────────────┐
-│       ÁREA ADMINISTRATIVA               │
-├─────────────────────────────────────────┤
-│ • Panel Admin                           │
-│ • Gestión de Usuarios                   │
-│ • Gestión de Roles                      │
-│ • Configuraciones Sistema               │
-│ • Backups y Mantenimiento               │
-│ • Logs y Auditoría                      │
-└─────────────────────────────────────────┘
-```
-
-### 📄 Páginas Principales
-
-#### 🏠 Dashboard (Home Autenticado)
-
-**Ruta:** `/dashboard`  
-**Vista:** `resources/views/dashboard.blade.php`  
-**Controlador:** `App\Http\Controllers\DashboardController`
-
-**Contenido:**
-- Métricas personales (total prompts, calificaciones recibidas)
-- Últimos prompts creados
-- Actividad reciente del chatbot
-- Accesos rápidos a funciones principales
-
-**Elementos visuales:**
-- Cards con estadísticas
-- Gráficos de actividad
-- Lista de acciones rápidas
-
----
-
-#### 📝 Gestión de Prompts
-
-##### Listado de Prompts
-
-**Ruta:** `/prompts`  
-**Vista:** `resources/views/prompts/index.blade.php`
-
-| Elemento | Descripción |
-|----------|-------------|
-| **Buscador** | Filtro por título, contenido, etiquetas |
-| **Grid/Tabla** | Vista alternativa de prompts |
-| **Paginación** | 15 items por página |
-| **Botón Crear** | Acceso a formulario nuevo prompt |
-
-##### Crear/Editar Prompt
-
-**Rutas:** `/prompts/create`, `/prompts/{id}/edit`  
-**Vistas:** `resources/views/prompts/create.blade.php`, `edit.blade.php`
-
-**Formulario:**
-```html
-┌─────────────────────────────────┐
-│ Título (obligatorio)            │
-├─────────────────────────────────┤
-│ Contenido (obligatorio)         │
-│ [Textarea grande]               │
-├─────────────────────────────────┤
-│ Etiquetas (opcional)            │
-│ [Select múltiple]               │
-├─────────────────────────────────┤
-│ Visibilidad                     │
-│ ( ) Privado  ( ) Público        │
-├─────────────────────────────────┤
-│ [Guardar]  [Cancelar]           │
-└─────────────────────────────────┘
-```
-
-##### Detalle de Prompt
-
-**Ruta:** `/prompts/{id}`  
-**Vista:** `resources/views/prompts/show.blade.php`
-
-**Secciones:**
-1. **Header**: Título, fecha, autor, botones acción
-2. **Contenido**: Prompt completo con formato
-3. **Etiquetas**: Tags clickeables para búsqueda
-4. **Calificaciones**: Widget 5 estrellas + promedio
-5. **Comentarios**: Lista + formulario nuevo comentario
-6. **Versiones**: Historial de cambios (si hay)
-7. **Compartir**: Generar enlace temporal
-
----
-
-#### 🤖 Chat con IA
-
-**Ruta:** `/chatbot`  
-**Vista:** `resources/views/chatbot/index.blade.php`  
-**Controlador:** `App\Http\Controllers\ChatbotController`
-
-**Componentes:**
-
-| Zona | Función |
-|------|---------|
-| **Selector Provider** | Claude / Gemini / Groq |
-| **Historial** | Conversaciones previas (sidebar) |
-| **Chat Area** | Mensajes usuario/IA |
-| **Input Box** | Textarea + botón enviar |
-
-**Features:**
-- Cambio de modelo en tiempo real
-- Historial persistente en BD
-- Markdown rendering en respuestas
-- Copy to clipboard
-
----
-
-#### 🔗 Prompts Compartidos
-
-**Ruta:** `/compartidos`  
-**Vista:** `resources/views/compartidos/index.blade.php`
-
-**Tipos de vista:**
-- Compartidos **por mí** (links que creé)
-- Compartidos **conmigo** (accesos que recibí)
-
-**Tabla:**
-
-| Prompt | Compartido con | Permiso | Expira | Acciones |
-|--------|---------------|---------|--------|----------|
-| "Prompt X" | user@mail.com | Lectura | 7 días | Revocar |
-| "Prompt Y" | Público | Edición | Nunca | Ver |
-
----
-
-#### 👤 Mi Perfil
-
-**Ruta:** `/perfil`  
-**Vista:** `resources/views/perfil/edit.blade.php`
-
-**Datos editables:**
-- Nombre
-- Email
-- Contraseña (con confirmación)
-- Avatar (upload)
-- Preferencias de notificaciones
-
----
-
-#### ⚙️ Panel Administrativo
-
-**Ruta:** `/admin`  
-**Vista:** `resources/views/admin/dashboard.blade.php`
-
-**Acceso:** Solo usuarios con rol `admin`
-
-##### Gestión de Usuarios
-
-**Ruta:** `/admin/usuarios`
-
-| Campo | Acciones Disponibles |
-|-------|---------------------|
-| Nombre | Ver, Editar |
-| Email | Ver, Editar |
-| Rol | Cambiar (admin/user) |
-| Estado | Activar/Desactivar |
-| Acciones | Eliminar, Ver prompts |
-
-##### Configuraciones Sistema
-
-**Ruta:** `/admin/configuraciones`
-
-**Secciones:**
-- **General**: Nombre app, timezone, maintenance mode
-- **Backups**: Crear backup BD manual
-- **APIs**: Verificar keys IA
-- **Cache**: Limpiar cache sistema
-
----
-
-### 🔄 Flujos de Navegación Principales
-
-#### Flujo 1: Crear y Compartir Prompt
-
-```
-Dashboard → Mis Prompts → [Crear Nuevo]
-     ↓
-Formulario Crear → [Guardar]
-     ↓
-Detalle Prompt → [Compartir]
-     ↓
-Modal Compartir → Generar enlace → Copiar
-```
-
-#### Flujo 2: Usar Chatbot con Prompt
-
-```
-Mis Prompts → Seleccionar Prompt → [Usar en Chat]
-     ↓
-Chat IA (prompt pre-cargado) → Seleccionar Provider
-     ↓
-Enviar → Recibir Respuesta → [Guardar Conversación]
-```
-
-#### Flujo 3: Calificar Prompt Público
-
-```
-Explorar Prompts → Buscar por Tag → Seleccionar Prompt
-     ↓
-Ver Detalle → Widget Calificación → Dar estrellas
-     ↓
-[Opcional] Dejar Comentario → Publicar
+# 📱 GoRide - Aplicación de Transporte
+
+## 6.1 HERRAMIENTAS UTILIZADAS
+
+Este proyecto integra tecnologías modernas para el desarrollo multiplataforma, implementando un stack completo que permite crear una aplicación móvil robusta con un backend escalable. La selección de estas herramientas se basa en la necesidad de mantener un código mantenible, tipado y con alto rendimiento tanto en dispositivos móviles como en el servidor.
+
+### Frontend - Tecnologías Principales
+
+| Herramienta | Versión | Propósito | Documentación |
+|-------------|---------|-----------|---------------|
+| **React Native** | 0.81.5 | Framework principal para desarrollo móvil multiplataforma | [Docs](https://reactnative.dev/) |
+| **Expo** | ~54.0.31 | Plataforma de desarrollo y herramientas para React Native | [Docs](https://docs.expo.dev/) |
+| **TypeScript** | ~5.9.2 | Superset de JavaScript con tipado estático | [Docs](https://www.typescriptlang.org/) |
+| **Expo Router** | ~6.0.22 | Sistema de navegación basado en archivos | [Docs](https://docs.expo.dev/router/introduction/) |
+| **React** | 19.1.0 | Librería base para interfaces de usuario | [Docs](https://react.dev/) |
+
+### Librerías de UI y Funcionalidad
+
+| Librería | Función | Caso de Uso |
+|----------|---------|-------------|
+| `react-native-maps` | Integración de mapas interactivos | Visualización de rutas y ubicaciones de viajes |
+| `react-native-gifted-chat` | Componentes de chat prediseñados | Sistema de mensajería entre usuarios y conductores |
+| `@expo/vector-icons` | Iconos vectoriales | Interfaz gráfica consistente |
+| `expo-image-picker` | Selección de imágenes | Actualización de foto de perfil |
+| `react-native-reanimated` | Animaciones nativas optimizadas | Transiciones fluidas en la UI |
+| `@react-native-async-storage/async-storage` | Almacenamiento local persistente | Caché de datos y sesión de usuario |
+
+### Backend - Tecnologías del Servidor
+
+| Herramienta | Versión | Función |
+|-------------|---------|---------|
+| **Node.js** | LTS | Entorno de ejecución JavaScript del lado del servidor |
+| **Express** | ^5.2.1 | Framework web minimalista y flexible |
+| **MySQL2** | ^3.16.1 | Cliente MySQL con soporte para Promises |
+| **Socket.IO** | ^4.8.3 | Comunicación en tiempo real bidireccional |
+| **CORS** | ^2.8.5 | Middleware para permitir peticiones cross-origin |
+| **dotenv** | ^17.2.3 | Gestión de variables de entorno |
+
+### Herramientas de Desarrollo
+
+- **Axios** (^1.13.2): Cliente HTTP para peticiones REST
+- **Socket.IO Client** (^4.8.3): Cliente para comunicación en tiempo real
+- **React Navigation** (^7.1.28): Navegación entre pantallas
+- **Expo Haptics**: Feedback táctil en interacciones
+
+### Entorno de Desarrollo
+
+```bash
+├── IDE Recomendado: Visual Studio Code / Android Studio
+├── Runtime: Node.js 18+ / Expo Go App
+├── Base de Datos: MySQL 8.0+
+├── Sistema de Control de Versiones: Git
+└── Gestor de Paquetes: npm / yarn
 ```
 
 ---
 
-## 7.9 Funcionalidades Claves
+## 6.2 ESTRUCTURA DEL PROYECTO EN ANDROID STUDIO
 
-PromptVault ofrece un conjunto robusto de funcionalidades diseñadas para maximizar la productividad en la gestión y uso de prompts con inteligencia artificial.
+El proyecto está organizado siguiendo el patrón MVC (Modelo-Vista-Controlador) con una arquitectura modular que separa claramente las responsabilidades. Esta estructura facilita el mantenimiento, escalabilidad y trabajo en equipo, permitiendo que múltiples desarrolladores trabajen en diferentes módulos sin conflictos.
 
-### 🎯 Funcionalidades Core
+### 📁 Árbol de Directorios Principal
 
-#### 1️⃣ Gestión Completa de Prompts (CRUD)
+```
+GoRide/
+│
+├── 📱 app/                          # Rutas y pantallas principales (Expo Router)
+│   ├── _layout.tsx                 # Layout raíz de la aplicación
+│   ├── index.tsx                   # Pantalla de inicio/login
+│   ├── registro.tsx                # Pantalla de registro
+│   ├── ayuda.tsx                   # Pantalla de ayuda
+│   ├── billetera.tsx               # Gestión de pagos
+│   ├── chat.tsx                    # Chat individual
+│   ├── notificaciones.tsx          # Centro de notificaciones
+│   ├── lugares.tsx                 # Lugares guardados
+│   └── (tabs)/                     # Navegación por pestañas
+│       ├── _layout.tsx             # Layout del tab navigator
+│       ├── index.tsx               # Dashboard principal
+│       ├── actividad.tsx           # Historial de viajes
+│       ├── explorar.tsx            # Exploración de servicios
+│       └── perfil.tsx              # Perfil de usuario
+│
+├── 🎨 src/                          # Código fuente principal (Arquitectura MVC)
+│   ├── vistas/                     # 👁️ VISTAS (Capa de Presentación)
+│   ├── controladores/              # 🎮 CONTROLADORES (Lógica de Negocio)
+│   ├── modelos/                    # 📊 MODELOS (Estructuras de Datos)
+│   ├── componentes/                # 🧩 Componentes Reutilizables
+│   ├── servicios/                  # 🔌 Servicios Externos (Socket, APIs)
+│   ├── context/                    # 🌐 Context API (Estado Global)
+│   ├── estilos/                    # 💅 Estilos Globales
+│   └── utils/                      # 🛠️ Utilidades y Helpers
+│
+├── 🖼️ assets/                       # Recursos estáticos
+│   ├── images/                     # Imágenes, iconos, splash
+│   └── fonts/                      # Fuentes personalizadas
+│
+├── ⚙️ backend/                      # Servidor Node.js + Express
+│   ├── server.js                   # Punto de entrada del servidor
+│   ├── migrations/                 # Scripts de migración de BD
+│   ├── seeds/                      # Datos de prueba
+│   └── package.json                # Dependencias del backend
+│
+├── 🗄️ database/                     # Configuración de base de datos
+│   └── mysql_setup.sql             # Script de inicialización MySQL
+│
+├── 📚 docs/                         # Documentación del proyecto
+│   ├── 01_Aspectos_Generales.md
+│   └── 02_Credenciales.md
+│
+└── ⚙️ Archivos de Configuración
+    ├── package.json                # Dependencias frontend
+    ├── tsconfig.json               # Configuración TypeScript
+    ├── app.json                    # Configuración Expo
+    └── expo-env.d.ts               # Tipos globales de Expo
+```
 
-**Descripción:** Sistema integral para crear, leer, actualizar y eliminar prompts con versionado automático.
+### 📊 Distribución de Archivos por Módulo
 
-| Acción | Características |
-|--------|----------------|
-| **Crear** | Título, contenido, etiquetas, visibilidad |
-| **Editar** | Guarda versión anterior automáticamente |
-| **Eliminar** | Soft delete con posibilidad de restaurar |
-| **Búsqueda** | Full-text en título/contenido + filtros |
-| **Versionado** | Historial completo de cambios con diff |
+| Directorio | Total Archivos | Descripción |
+|------------|----------------|-------------|
+| `/app` | ~15 archivos | Pantallas principales con Expo Router |
+| `/src/vistas` | ~12 archivos | Componentes de vista principales |
+| `/src/modelos` | ~5 archivos | Interfaces TypeScript |
+| `/src/controladores` | ~3 archivos | Lógica de negocio y APIs |
+| `/src/componentes` | ~8 archivos | Componentes reutilizables |
+| `/src/servicios` | ~2 archivos | Socket.IO y servicios externos |
+| `/backend` | ~8 archivos | API REST y lógica del servidor |
 
-**Código clave:**
-```php
-// app/Services/PromptService.php
-public function updatePrompt(Prompt $prompt, array $data): Prompt
-{
-    // Guarda versión anterior antes de actualizar
-    $this->versionRepository->crearVersion($prompt);
-    
-    return $this->promptRepository->update($prompt, $data);
+### 🔄 Flujo de Navegación (Expo Router)
+
+```
+┌─────────────────────────────────────────────┐
+│          app/index.tsx (Login)             │
+│                                             │
+└──────────────────┬──────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────┐
+│         app/(tabs)/_layout.tsx              │
+│         (Tab Navigation)                    │
+│                                             │
+│  ┌──────────┬──────────┬──────────┬────────┤
+│  │  Home    │Actividad │Explorar  │ Perfil │
+│  └──────────┴──────────┴──────────┴────────┘
+└─────────────────────────────────────────────┘
+                   │
+         ┌─────────┼─────────┐
+         ▼         ▼         ▼
+      Ayuda     Chat    Billetera
+```
+
+### 🔗 Integración Frontend-Backend
+
+| Componente | Ubicación | Conexión |
+|------------|-----------|----------|
+| API REST | `/backend/server.js` | Puerto 3000 |
+| Socket.IO | `/src/servicios/SocketService.ts` | WebSocket en puerto 3000 |
+| Controlador | `/src/controladores/BaseDeDatos.ts` | Axios HTTP Client |
+| Base de Datos | MySQL (Puerto 3306) | Express → MySQL2 |
+
+---
+
+## 6.3 IMPLEMENTACIÓN DE LA ARQUITECTURA MVC
+
+El proyecto implementa el patrón Modelo-Vista-Controlador (MVC) para separar las responsabilidades del código en tres capas distintas. Esta arquitectura permite que los cambios en la interfaz de usuario no afecten la lógica de negocio, y viceversa, facilitando el testing, mantenimiento y escalabilidad del sistema.
+
+### 🏗️ Diagrama de Arquitectura MVC
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CAPA DE VISTA (View)                     │
+│                                                               │
+│  📱 /src/vistas/                    📱 /app/                 │
+│  ├── DashboardVista.tsx  ────────► ├── (tabs)/index.tsx     │
+│  ├── PerfilVista.tsx     ────────► ├── (tabs)/perfil.tsx    │
+│  ├── ActividadVista.tsx  ────────► ├── (tabs)/actividad.tsx │
+│  └── ChatVista.tsx       ────────► └── chat.tsx             │
+│                                                               │
+│          ▲                              ▲                     │
+│          │ Renderiza UI                 │ Rutas              │
+│          │                              │                     │
+└──────────┼──────────────────────────────┼─────────────────────┘
+           │                              │
+           │                              │
+┌──────────┼──────────────────────────────┼─────────────────────┐
+│          │        CAPA CONTROLADOR (Controller)               │
+│          │                                                     │
+│  🎮 /src/controladores/              🌐 /src/context/        │
+│  ├── BaseDeDatos.ts ◄──────────────► ├── AuthContext.tsx    │
+│  │  ├── login()                      │  ├── login()          │
+│  │  ├── obtenerUsuario()             │  ├── logout()         │
+│  │  ├── crearViaje()                 │  └── updateUser()     │
+│  │  └── obtenerViajes()                                      │
+│  │                                                            │
+│  └── 🔌 /src/servicios/                                      │
+│      └── SocketService.ts (Tiempo Real)                      │
+│                                                               │
+│          │                              │                     │
+│          │ Procesa lógica               │ Gestiona estado    │
+│          │                              │                     │
+└──────────┼──────────────────────────────┼─────────────────────┘
+           │                              │
+           ▼                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    CAPA MODELO (Model)                       │
+│                                                               │
+│  📊 /src/modelos/                 💾 /backend/               │
+│  ├── Usuario.ts                  ├── server.js               │
+│  ├── Viaje.ts                    └── MySQL Database          │
+│  ├── Conductor.ts                    ├── usuarios            │
+│  ├── Pago.ts                         ├── viajes              │
+│  └── Producto.ts                     ├── conductores         │
+│                                       └── pagos               │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 📊 MODELO (Model) - Estructuras de Datos
+
+Los modelos definen las interfaces TypeScript que representan las entidades del sistema y garantizan el tipado seguro en toda la aplicación.
+
+#### Archivos y Responsabilidades
+
+| Archivo | Entidad | Propiedades Principales | Ubicación |
+|---------|---------|------------------------|-----------|
+| `Usuario.ts` | Usuario del sistema | `id`, `nombre`, `email`, `telefono`, `es_conductor` | [src/modelos/](src/modelos/Usuario.ts) |
+| `Viaje.ts` | Viaje/solicitud | `id`, `usuario_id`, `conductor_id`, `origen`, `destino`, `estado` | [src/modelos/](src/modelos/Viaje.ts) |
+| `Conductor.ts` | Perfil de conductor | `id`, `usuario_id`, `vehiculo_tipo`, `placa`, `rating` | [src/modelos/](src/modelos/Conductor.ts) |
+| `Pago.ts` | Transacciones | `id`, `viaje_id`, `monto`, `metodo`, `estado` | [src/modelos/](src/modelos/Pago.ts) |
+| `Producto.ts` | Servicios disponibles | `id`, `nombre`, `categoria`, `precio_base` | [src/modelos/](src/modelos/Producto.ts) |
+
+#### Ejemplo de Implementación: Usuario.ts
+
+```typescript
+export interface Usuario {
+  id: number;
+  nombre: string;
+  email: string;
+  telefono?: string;
+  foto_perfil?: string;
+  es_conductor: boolean;
+  created_at?: string;
 }
 ```
 
-**Validaciones:**
-- Título: mínimo 5 caracteres, máximo 200
-- Contenido: mínimo 10 caracteres
-- Etiquetas: máximo 5 por prompt
-- Usuario solo puede editar sus propios prompts (via Policy)
+**Características:**
+- ✅ Tipado estático con TypeScript
+- ✅ Propiedades opcionales con `?`
+- ✅ Exportación como interfaz reutilizable
+- ✅ Validación en tiempo de compilación
 
----
+### 🎮 CONTROLADOR (Controller) - Lógica de Negocio
 
-#### 2️⃣ Sistema Multi-Provider de IA
+Los controladores gestionan las operaciones CRUD, comunicación con el backend y lógica de negocio de la aplicación.
 
-**Descripción:** Integración simultánea con 3 proveedores de IA para máxima flexibilidad.
+#### BaseDeDatos.ts - Controlador Principal
 
-| Provider | Modelo | Velocidad | Contexto |
-|----------|--------|-----------|----------|
-| **Claude** | Claude 3.5 Sonnet | ⭐⭐⭐ | 200K tokens |
-| **Gemini** | Gemini 1.5 Pro | ⭐⭐⭐⭐ | 1M tokens |
-| **Groq** | Llama 3.1 70B | ⭐⭐⭐⭐⭐ | 8K tokens |
+| Método | Parámetros | Retorno | Función |
+|--------|-----------|---------|---------|
+| `login()` | `email`, `password` | `Promise<Usuario>` | Autenticación de usuario |
+| `registrarUsuario()` | `datos: Usuario` | `Promise<Usuario>` | Registro de nuevo usuario |
+| `obtenerUsuario()` | `id: number` | `Promise<Usuario>` | Obtener datos de usuario |
+| `crearViaje()` | `datos: Viaje` | `Promise<Viaje>` | Solicitar nuevo viaje |
+| `obtenerViajes()` | `usuario_id: number` | `Promise<Viaje[]>` | Historial de viajes |
+| `actualizarEstadoViaje()` | `viaje_id`, `estado` | `Promise<void>` | Cambiar estado del viaje |
+| `obtenerConductoresDisponibles()` | `ubicacion` | `Promise<Conductor[]>` | Buscar conductores cercanos |
 
-**Cambio dinámico:**
-```javascript
-// resources/js/chatbot.js
-Alpine.data('chatbot', () => ({
-    provider: 'claude',
-    changeProvider(newProvider) {
-        this.provider = newProvider;
-        // Actualiza UI sin recargar página
-    }
-}));
-```
+#### Estructura del Controlador
 
-**Features:**
-- Selección de modelo sin recargar
-- Historial por proveedor
-- Comando: `php artisan check:models` para ver modelos disponibles
+```typescript
+export const BaseDeDatos = {
+  // Autenticación
+  async login(email: string, password: string) {
+    const response = await fetchWithTimeout(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    return response.json();
+  },
 
----
-
-#### 3️⃣ Sistema de Calificación Comunitario
-
-**Descripción:** Calificación de 1-5 estrellas con promedio ponderado y validación única por usuario.
-
-**Reglas de negocio:**
-- ✅ 1 calificación por usuario por prompt
-- ✅ Recalcula promedio automáticamente
-- ✅ No puedes calificar tus propios prompts
-- ✅ Editable (cambiar estrellas)
-
-**Tabla resumen:**
-
-| Estadística | Cálculo |
-|------------|---------|
-| **Promedio** | `SUM(estrellas) / COUNT(calificaciones)` |
-| **Total Calificaciones** | `COUNT(*)` |
-| **Distribución** | Histograma 1-5 estrellas |
-
-**Implementación:**
-```php
-// app/Services/CalificacionService.php
-public function calificar(Prompt $prompt, User $user, int $estrellas): Calificacion
-{
-    // Valida: no es propietario y estrellas 1-5
-    $this->validarCalificacion($prompt, $user, $estrellas);
-    
-    return Calificacion::updateOrCreate(
-        ['prompt_id' => $prompt->id, 'user_id' => $user->id],
-        ['estrellas' => $estrellas]
-    );
+  // CRUD de Viajes
+  async crearViaje(datos: Viaje) {
+    const response = await fetchWithTimeout(`${API_URL}/viajes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+    return response.json();
+  }
 }
 ```
 
----
+#### Servicios Adicionales
 
-#### 4️⃣ Sistema de Compartir con Permisos Granulares
+| Servicio | Archivo | Propósito |
+|----------|---------|-----------|
+| **Socket.IO** | `SocketService.ts` | Comunicación en tiempo real (ubicación, mensajes) |
+| **Context API** | `AuthContext.tsx` | Estado global de autenticación |
+| **Pricing** | `pricing.ts` | Cálculo de tarifas de viaje |
+| **Simulation** | `simulation.ts` | Simulación de rutas y movimiento |
 
-**Descripción:** Genera enlaces temporales o permanentes con control de acceso fino.
+### 👁️ VISTA (View) - Capa de Presentación
 
-**Tipos de permisos:**
+Las vistas son componentes React Native que presentan la información al usuario y capturan sus interacciones.
 
-| Permiso | Usuario Puede |
-|---------|--------------|
-| **Lectura** | Ver prompt, copiar contenido |
-| **Edición** | Modificar prompt, ver versiones |
-| **Admin** | Editar + eliminar + compartir |
+#### Vistas Principales del Sistema
 
-**Opciones de expiración:**
-- 1 hora
-- 1 día
-- 7 días
-- 30 días
-- Sin expiración
+| Vista | Archivo | Responsabilidad | Controladores Usados |
+|-------|---------|-----------------|---------------------|
+| **Dashboard** | `DashboardVista.tsx` | Pantalla principal, solicitud de viajes | `BaseDeDatos`, `SocketService` |
+| **Perfil** | `PerfilVista.tsx` | Gestión de datos del usuario | `BaseDeDatos`, `AuthContext` |
+| **Actividad** | `ActividadVista.tsx` | Historial de viajes realizados | `BaseDeDatos` |
+| **Chat** | `ChatVista.tsx` | Mensajería en tiempo real | `SocketService` |
+| **Conductor** | `ConductorVista.tsx` | Panel del conductor (aceptar viajes) | `BaseDeDatos`, `SocketService` |
+| **Billetera** | `BilleteraVista.tsx` | Gestión de pagos y saldo | `BaseDeDatos` |
+| **Ayuda** | `AyudaVista.tsx` | Centro de ayuda y soporte | - |
 
-**Tabla BD:**
-```sql
-CREATE TABLE accesos_compartidos (
-    id BIGINT PRIMARY KEY,
-    prompt_id BIGINT,
-    user_id BIGINT,
-    email_compartido VARCHAR(255),
-    token VARCHAR(255) UNIQUE,
-    permiso ENUM('lectura', 'edicion'),
-    expira_en TIMESTAMP NULL,
-    created_at TIMESTAMP
-);
-```
+#### Componentes Reutilizables
 
-**Generación de enlace:**
-```php
-// app/Services/CompartirService.php
-public function generarAcceso(Prompt $prompt, string $email, string $permiso): string
-{
-    $token = Str::random(32);
+| Componente | Archivo | Función | Props Clave |
+|------------|---------|---------|-------------|
+| **Mapa** | `Mapa.tsx` | Renderizado de mapas interactivos | `ubicacion`, `destino`, `ruta` |
+| **BuscadorDestino** | `BuscadorDestino.tsx` | Búsqueda y selección de ubicaciones | `onDestinoSeleccionado` |
+| **SelectorVehiculo** | `SelectorVehiculo.tsx` | Selección de tipo de vehículo | `vehiculos`, `onSeleccionar` |
+| **PanelViaje** | `PanelViaje.tsx` | Información del viaje en curso | `viaje`, `conductor` |
+| **CalificacionViaje** | `CalificacionViaje.tsx` | Sistema de valoración post-viaje | `viaje`, `onCalificar` |
+| **ResumenViaje** | `ResumenViaje.tsx` | Detalles finales del viaje | `viaje`, `costo` |
+
+#### Ejemplo de Implementación: DashboardVista.tsx
+
+```typescript
+export default function DashboardVista() {
+  const { user } = useAuth();  // Context (Estado Global)
+  const [fase, setFase] = useState<"inicio" | "busqueda" | "en_viaje">("inicio");
+  
+  const solicitarViaje = async () => {
+    const viaje = await BaseDeDatos.crearViaje({
+      usuario_id: user.id,
+      origen: origenSeleccionado,
+      destino: destinoSeleccionado,
+      vehiculo_tipo: vehiculoSeleccionado
+    });
     
-    AccesoCompartido::create([
-        'prompt_id' => $prompt->id,
-        'email_compartido' => $email,
-        'token' => $token,
-        'permiso' => $permiso,
-        'expira_en' => now()->addDays(7),
-    ]);
-    
-    return route('compartidos.acceso', $token);
+    SocketService.emit('solicitar_viaje', viaje);
+    setFase("solicitando");
+  };
+  
+  return (
+    <View>
+      <Mapa ubicacion={ubicacion} destino={destino} />
+      <BuscadorDestino onDestinoSeleccionado={setDestino} />
+      <SelectorVehiculo onSeleccionar={solicitarViaje} />
+    </View>
+  );
 }
 ```
 
----
+### 🔄 Flujo de Datos MVC en Acción
 
-#### 5️⃣ Control de Acceso con Policies
+#### Ejemplo: Solicitar un Viaje
 
-**Descripción:** Autorización basada en Laravel Policies para cada acción del sistema.
+```
+1. Usuario interactúa con la Vista
+   └─► DashboardVista.tsx: Presiona "Solicitar Viaje"
 
-**Policies implementadas:**
+2. Vista invoca al Controlador
+   └─► BaseDeDatos.crearViaje({ origen, destino, usuario_id })
 
-| Policy | Métodos | Validaciones |
-|--------|---------|--------------|
-| `PromptPolicy` | view, update, delete, share | Propietario o admin |
-| `ComentarioPolicy` | create, update, delete | Usuario autenticado |
+3. Controlador procesa y comunica con el Backend
+   └─► POST /api/viajes → Express Server
 
-**Ejemplo de Policy:**
-```php
-// app/Policies/PromptPolicy.php
-class PromptPolicy
-{
-    public function update(User $user, Prompt $prompt): bool
-    {
-        // Solo propietario o admin
-        return $user->id === $prompt->user_id 
-            || $user->hasRole('admin');
-    }
-    
-    public function share(User $user, Prompt $prompt): bool
-    {
-        // Solo propietario puede compartir
-        return $user->id === $prompt->user_id;
-    }
-}
+4. Backend interactúa con el Modelo
+   └─► MySQL INSERT INTO viajes (...)
+
+5. Respuesta regresa al Controlador
+   └─► Viaje creado con ID asignado
+
+6. Controlador actualiza la Vista
+   └─► setViaje(nuevoViaje), setFase("en_viaje")
+
+7. Socket.IO notifica en tiempo real
+   └─► SocketService.emit('nuevo_viaje', viaje)
+   └─► Conductores reciben notificación
 ```
 
-**Uso en Controlador:**
-```php
-public function update(Request $request, Prompt $prompt)
-{
-    $this->authorize('update', $prompt);
-    
-    // Usuario autorizado, procede...
-}
-```
+### 📈 Ventajas de la Arquitectura MVC Implementada
 
----
+| Ventaja | Descripción | Impacto |
+|---------|-------------|---------|
+| **Separación de Responsabilidades** | Cada capa tiene una función específica | Código más limpio y mantenible |
+| **Reutilización de Código** | Controladores y modelos compartidos | Menos duplicación |
+| **Facilidad de Testing** | Cada capa se puede probar independientemente | Mayor cobertura de tests |
+| **Escalabilidad** | Nuevas funcionalidades sin refactorización masiva | Desarrollo más rápido |
+| **Trabajo en Equipo** | Múltiples devs trabajando en paralelo | Menos conflictos de merge |
+| **Tipado Seguro** | TypeScript en toda la arquitectura | Menos bugs en producción |
 
-#### 6️⃣ Gestión de Usuarios y Roles
+### 🧪 Testing por Capas
 
-**Descripción:** Sistema de roles jerárquico con permisos diferenciados.
+```typescript
+// Test del Modelo
+test('Usuario.ts debe tener propiedades requeridas', () => {
+  const usuario: Usuario = {
+    id: 1,
+    nombre: "Juan",
+    email: "juan@test.com",
+    es_conductor: false
+  };
+  expect(usuario.id).toBeDefined();
+});
 
-**Roles del sistema:**
+// Test del Controlador
+test('BaseDeDatos.login debe retornar un usuario', async () => {
+  const usuario = await BaseDeDatos.login('test@mail.com', 'password');
+  expect(usuario).toHaveProperty('id');
+});
 
-| Rol | Permisos |
-|-----|----------|
-| **Admin** | Acceso total, gestión usuarios, configuración |
-| **User** | CRUD prompts propios, chat IA, calificaciones |
-| **Guest** | Solo visualización de prompts públicos |
-
-**Tabla de permisos:**
-
-| Acción | Admin | User | Guest |
-|--------|-------|------|-------|
-| Ver prompts públicos | ✅ | ✅ | ✅ |
-| Crear prompt | ✅ | ✅ | ❌ |
-| Editar prompt propio | ✅ | ✅ | ❌ |
-| Editar prompt ajeno | ✅ | ❌ | ❌ |
-| Eliminar cualquier prompt | ✅ | ❌ | ❌ |
-| Usar chatbot IA | ✅ | ✅ | ❌ |
-| Ver panel admin | ✅ | ❌ | ❌ |
-| Gestionar usuarios | ✅ | ❌ | ❌ |
-
-**Middleware:**
-```php
-// routes/master-web.php
-Route::middleware(['auth', 'role:admin'])->group(function () {
-    Route::get('/admin/usuarios', [UsuarioController::class, 'index']);
+// Test de la Vista
+test('DashboardVista debe renderizar el mapa', () => {
+  const { getByTestId } = render(<DashboardVista />);
+  expect(getByTestId('mapa')).toBeTruthy();
 });
 ```
 
 ---
 
-#### 7️⃣ Búsqueda Avanzada y Filtrado
+## 🚀 Ejecución del Proyecto
 
-**Descripción:** Sistema de búsqueda full-text con múltiples filtros combinables.
+### Requisitos Previos
 
-**Filtros disponibles:**
+- Node.js 18+
+- MySQL 8.0+
+- Expo Go App (dispositivo móvil)
+- Android Studio (opcional para emulador)
 
-| Filtro | Tipo | Opciones |
-|--------|------|----------|
-| **Texto** | Input | Busca en título + contenido |
-| **Etiquetas** | Multi-select | Tags existentes |
-| **Autor** | Dropdown | Todos los usuarios |
-| **Calificación** | Range | 1-5 estrellas |
-| **Fecha** | Date range | Desde - Hasta |
-| **Visibilidad** | Radio | Público / Privado / Todos |
-
-**Query Builder:**
-```php
-// app/Repositories/PromptRepository.php
-public function buscar(array $filtros): Collection
-{
-    return Prompt::query()
-        ->when($filtros['texto'] ?? null, function ($query, $texto) {
-            $query->where('titulo', 'LIKE', "%{$texto}%")
-                  ->orWhere('contenido', 'LIKE', "%{$texto}%");
-        })
-        ->when($filtros['etiquetas'] ?? null, function ($query, $etiquetas) {
-            $query->whereHas('etiquetas', function ($q) use ($etiquetas) {
-                $q->whereIn('id', $etiquetas);
-            });
-        })
-        ->when($filtros['calificacion_min'] ?? null, function ($query, $min) {
-            $query->withAvg('calificaciones', 'estrellas')
-                  ->having('calificaciones_avg_estrellas', '>=', $min);
-        })
-        ->paginate(15);
-}
-```
-
----
-
-#### 8️⃣ Gestión de Configuraciones Sistema
-
-**Descripción:** Panel administrativo para configurar parámetros globales del sistema.
-
-**Configuraciones disponibles:**
-
-| Categoría | Configuración | Tipo |
-|-----------|--------------|------|
-| **General** | Nombre aplicación | Text |
-| **General** | Modo mantenimiento | Boolean |
-| **APIs** | Claude API Key | Password |
-| **APIs** | Gemini API Key | Password |
-| **APIs** | Groq API Key | Password |
-| **Seguridad** | Timeout sesión | Number (minutos) |
-| **Backup** | Backup automático | Boolean |
-| **Cache** | Driver cache | Select (redis/file) |
-
-**Implementación:**
-```php
-// app/Models/AppSetting.php
-class AppSetting extends Model
-{
-    public static function get(string $key, $default = null)
-    {
-        return cache()->remember("setting.{$key}", 3600, function () use ($key, $default) {
-            return static::where('key', $key)->value('value') ?? $default;
-        });
-    }
-}
-```
-
-**Comando para verificar APIs:**
-```bash
-php artisan app:verify-ai-keys
-# Output: ✅ Claude: OK | ❌ Gemini: Invalid Key | ✅ Groq: OK
-```
-
----
-
-### 📊 Resumen de Funcionalidades
-
-| Funcionalidad | Estado | Cobertura Tests |
-|--------------|--------|----------------|
-| CRUD Prompts | ✅ Completo | 95% |
-| Multi-Provider IA | ✅ Completo | 90% |
-| Calificaciones | ✅ Completo | 92% |
-| Sistema Compartir | ✅ Completo | 88% |
-| Policies Autorización | ✅ Completo | 100% |
-| Gestión Usuarios/Roles | ✅ Completo | 85% |
-| Búsqueda Avanzada | ✅ Completo | 87% |
-| Configuraciones Admin | ✅ Completo | 80% |
-
----
-
-## 📦 Instalación
+### Instalación
 
 ```bash
-git clone https://github.com/tu-usuario/promptvault.git
-cd promptvault
-composer setup
-cp .env.example .env
-php artisan migrate --seed
-npm install && npm run dev
-php artisan serve
+# 1. Clonar repositorio
+git clone <url-repositorio>
+cd GoRide
+
+# 2. Instalar dependencias frontend
+npm install
+
+# 3. Instalar dependencias backend
+cd backend
+npm install
+cd ..
+
+# 4. Configurar base de datos
+mysql -u root -p < database/mysql_setup.sql
+
+# 5. Configurar variables de entorno
+# Crear archivo .env en /backend con:
+# DB_HOST=localhost
+# DB_USER=root
+# DB_PASSWORD=tu_password
+# DB_NAME=goride_db
 ```
 
----
-
-## 7.7 Estructura del Sistema Web
-
-PromptVault sigue una **arquitectura MVC limpia** con separación de responsabilidades mediante el patrón Repository-Service. La estructura está organizada para facilitar escalabilidad y mantenimiento a largo plazo.
-
-### 📂 Organización de Carpetas Principal
-
-```
-PromptVault/
-├── app/                    # Lógica de aplicación
-│   ├── Http/              # Capa HTTP (Controllers, Middleware, Requests)
-│   ├── Models/            # Modelos Eloquent
-│   ├── Services/          # Lógica de negocio
-│   ├── Repositories/      # Acceso a datos
-│   ├── Policies/          # Autorización
-│   └── Contracts/         # Interfaces
-├── resources/             # Assets frontend
-│   ├── views/            # Plantillas Blade
-│   ├── css/              # Estilos (Tailwind)
-│   └── js/               # JavaScript (Alpine.js)
-├── database/              # Migraciones y seeders
-├── routes/                # Definición de rutas
-├── tests/                 # Tests automatizados
-└── public/                # Assets públicos
-```
-
-### 🏗️ Arquitectura por Capas
-
-| Capa | Responsabilidad | Ejemplos |
-|------|----------------|----------|
-| **Controllers** | Coordinación HTTP y respuestas | `PromptController`, `ChatbotController` |
-| **Services** | Lógica de negocio compleja | `PromptService`, `CalificacionService` |
-| **Repositories** | Queries y acceso a BD | `PromptRepository`, `EtiquetaRepository` |
-| **Models** | Entidades y relaciones | `Prompt`, `User`, `Calificacion` |
-| **Policies** | Reglas de autorización | `PromptPolicy`, `ComentarioPolicy` |
-| **Requests** | Validación de datos | `StorePromptRequest`, `CompartirPromptRequest` |
-
-### 📦 Módulos Principales
-
-#### 1️⃣ Módulo de Prompts
-
-```
-app/Http/Controllers/PromptController.php
-app/Services/PromptService.php
-app/Repositories/PromptRepository.php
-app/Models/Prompt.php
-app/Policies/PromptPolicy.php
-```
-
-**Funciones:** CRUD, versionado, compartir, búsqueda
-
-#### 2️⃣ Módulo de Chatbot IA
-
-```
-app/Http/Controllers/ChatbotController.php
-app/Services/ChatbotService.php
-app/Repositories/
-├── ChatbotClaudeRepository.php
-├── ChatbotGeminiRepository.php
-└── ChatbotGroqRepository.php
-app/Factories/ChatbotRepositoryFactory.php
-```
-
-**Funciones:** Conversación multi-provider, historial
-
-#### 3️⃣ Módulo de Calificaciones
-
-```
-app/Services/CalificacionService.php
-app/Models/Calificacion.php
-```
-
-**Funciones:** Sistema 5 estrellas, promedio, validación única
-
-#### 4️⃣ Módulo de Compartir
-
-```
-app/Services/CompartirService.php
-app/Models/AccesoCompartido.php
-```
-
-**Funciones:** Enlaces temporales, permisos (lectura/edición)
-
-### 🗂️ Estructura de Base de Datos
-
-| Tabla | Propósito | Relaciones |
-|-------|-----------|------------|
-| `users` | Usuarios del sistema | 1:N con prompts, calificaciones |
-| `prompts` | Prompts principales | N:M con etiquetas, 1:N con versiones |
-| `versiones` | Historial de cambios | N:1 con prompts |
-| `calificaciones` | Sistema de rating | N:1 con prompts, users |
-| `comentarios` | Feedback comunitario | N:1 con prompts, users |
-| `etiquetas` | Categorización | N:M con prompts |
-| `accesos_compartidos` | Compartir temporal | N:1 con prompts |
-| `chatbot_conversaciones` | Historial IA | N:1 con users |
-
-### 🔧 Configuración y Servicios
-
-```
-config/
-├── app.php              # Configuración general
-├── database.php         # Conexión BD
-├── services.php         # APIs externas (Claude, Gemini, Groq)
-└── auth.php            # Autenticación
-```
-
-**Servicios Integrados:**
-- **Anthropic Claude** (API REST)
-- **Google Gemini** (AI Studio)
-- **Groq** (LLM rápida)
-
-### 📋 System de Rutas
-
-| Archivo | Propósito |
-|---------|-----------|
-| `web.php` | Rutas públicas y autenticadas |
-| `auth.php` | Login, registro, recuperación |
-| `master-web.php` | Rutas administrativas |
-
----
-
-## 7.8 Descripción de la Estructura de Páginas
-
-El sistema está organizado en **3 áreas principales**: pública, usuario autenticado y administración. Cada área tiene páginas específicas con funcionalidades bien delimitadas.
-
-### 🌐 Mapa de Navegación
-
-```
-┌─────────────────────────────────────────┐
-│          ÁREA PÚBLICA                   │
-├─────────────────────────────────────────┤
-│ • Landing Page                          │
-│ • Login / Registro                      │
-│ • Recuperar Contraseña                  │
-└─────────────────────────────────────────┘
-                  │
-                  │ [Autenticación]
-                  ▼
-┌─────────────────────────────────────────┐
-│      ÁREA DE USUARIO                    │
-├─────────────────────────────────────────┤
-│ • Dashboard                             │
-│ • Mis Prompts                           │
-│ • Crear/Editar Prompt                   │
-│ • Ver Detalle + Versionado              │
-│ • Chat con IA                           │
-│ • Prompts Compartidos Conmigo           │
-│ • Explorar Prompts Públicos             │
-│ • Mi Perfil                             │
-└─────────────────────────────────────────┘
-                  │
-                  │ [Rol Admin]
-                  ▼
-┌─────────────────────────────────────────┐
-│       ÁREA ADMINISTRATIVA               │
-├─────────────────────────────────────────┤
-│ • Panel Admin                           │
-│ • Gestión de Usuarios                   │
-│ • Gestión de Roles                      │
-│ • Configuraciones Sistema               │
-│ • Backups y Mantenimiento               │
-│ • Logs y Auditoría                      │
-└─────────────────────────────────────────┘
-```
-
-### 📄 Páginas Principales
-
-#### 🏠 Dashboard (Home Autenticado)
-
-**Ruta:** `/dashboard`  
-**Vista:** `resources/views/dashboard.blade.php`  
-**Controlador:** `App\Http\Controllers\DashboardController`
-
-**Contenido:**
-- Métricas personales (total prompts, calificaciones recibidas)
-- Últimos prompts creados
-- Actividad reciente del chatbot
-- Accesos rápidos a funciones principales
-
-**Elementos visuales:**
-- Cards con estadísticas
-- Gráficos de actividad
-- Lista de acciones rápidas
-
----
-
-#### 📝 Gestión de Prompts
-
-##### Listado de Prompts
-
-**Ruta:** `/prompts`  
-**Vista:** `resources/views/prompts/index.blade.php`
-
-| Elemento | Descripción |
-|----------|-------------|
-| **Buscador** | Filtro por título, contenido, etiquetas |
-| **Grid/Tabla** | Vista alternativa de prompts |
-| **Paginación** | 15 items por página |
-| **Botón Crear** | Acceso a formulario nuevo prompt |
-
-##### Crear/Editar Prompt
-
-**Rutas:** `/prompts/create`, `/prompts/{id}/edit`  
-**Vistas:** `resources/views/prompts/create.blade.php`, `edit.blade.php`
-
-**Formulario:**
-```html
-┌─────────────────────────────────┐
-│ Título (obligatorio)            │
-├─────────────────────────────────┤
-│ Contenido (obligatorio)         │
-│ [Textarea grande]               │
-├─────────────────────────────────┤
-│ Etiquetas (opcional)            │
-│ [Select múltiple]               │
-├─────────────────────────────────┤
-│ Visibilidad                     │
-│ ( ) Privado  ( ) Público        │
-├─────────────────────────────────┤
-│ [Guardar]  [Cancelar]           │
-└─────────────────────────────────┘
-```
-
-##### Detalle de Prompt
-
-**Ruta:** `/prompts/{id}`  
-**Vista:** `resources/views/prompts/show.blade.php`
-
-**Secciones:**
-1. **Header**: Título, fecha, autor, botones acción
-2. **Contenido**: Prompt completo con formato
-3. **Etiquetas**: Tags clickeables para búsqueda
-4. **Calificaciones**: Widget 5 estrellas + promedio
-5. **Comentarios**: Lista + formulario nuevo comentario
-6. **Versiones**: Historial de cambios (si hay)
-7. **Compartir**: Generar enlace temporal
-
----
-
-#### 🤖 Chat con IA
-
-**Ruta:** `/chatbot`  
-**Vista:** `resources/views/chatbot/index.blade.php`  
-**Controlador:** `App\Http\Controllers\ChatbotController`
-
-**Componentes:**
-
-| Zona | Función |
-|------|---------|
-| **Selector Provider** | Claude / Gemini / Groq |
-| **Historial** | Conversaciones previas (sidebar) |
-| **Chat Area** | Mensajes usuario/IA |
-| **Input Box** | Textarea + botón enviar |
-
-**Features:**
-- Cambio de modelo en tiempo real
-- Historial persistente en BD
-- Markdown rendering en respuestas
-- Copy to clipboard
-
----
-
-#### 🔗 Prompts Compartidos
-
-**Ruta:** `/compartidos`  
-**Vista:** `resources/views/compartidos/index.blade.php`
-
-**Tipos de vista:**
-- Compartidos **por mí** (links que creé)
-- Compartidos **conmigo** (accesos que recibí)
-
-**Tabla:**
-
-| Prompt | Compartido con | Permiso | Expira | Acciones |
-|--------|---------------|---------|--------|----------|
-| "Prompt X" | user@mail.com | Lectura | 7 días | Revocar |
-| "Prompt Y" | Público | Edición | Nunca | Ver |
-
----
-
-#### 👤 Mi Perfil
-
-**Ruta:** `/perfil`  
-**Vista:** `resources/views/perfil/edit.blade.php`
-
-**Datos editables:**
-- Nombre
-- Email
-- Contraseña (con confirmación)
-- Avatar (upload)
-- Preferencias de notificaciones
-
----
-
-#### ⚙️ Panel Administrativo
-
-**Ruta:** `/admin`  
-**Vista:** `resources/views/admin/dashboard.blade.php`
-
-**Acceso:** Solo usuarios con rol `admin`
-
-##### Gestión de Usuarios
-
-**Ruta:** `/admin/usuarios`
-
-| Campo | Acciones Disponibles |
-|-------|---------------------|
-| Nombre | Ver, Editar |
-| Email | Ver, Editar |
-| Rol | Cambiar (admin/user) |
-| Estado | Activar/Desactivar |
-| Acciones | Eliminar, Ver prompts |
-
-##### Configuraciones Sistema
-
-**Ruta:** `/admin/configuraciones`
-
-**Secciones:**
-- **General**: Nombre app, timezone, maintenance mode
-- **Backups**: Crear backup BD manual
-- **APIs**: Verificar keys IA
-- **Cache**: Limpiar cache sistema
-
----
-
-### 🔄 Flujos de Navegación Principales
-
-#### Flujo 1: Crear y Compartir Prompt
-
-```
-Dashboard → Mis Prompts → [Crear Nuevo]
-     ↓
-Formulario Crear → [Guardar]
-     ↓
-Detalle Prompt → [Compartir]
-     ↓
-Modal Compartir → Generar enlace → Copiar
-```
-
-#### Flujo 2: Usar Chatbot con Prompt
-
-```
-Mis Prompts → Seleccionar Prompt → [Usar en Chat]
-     ↓
-Chat IA (prompt pre-cargado) → Seleccionar Provider
-     ↓
-Enviar → Recibir Respuesta → [Guardar Conversación]
-```
-
-#### Flujo 3: Calificar Prompt Público
-
-```
-Explorar Prompts → Buscar por Tag → Seleccionar Prompt
-     ↓
-Ver Detalle → Widget Calificación → Dar estrellas
-     ↓
-[Opcional] Dejar Comentario → Publicar
-```
-
----
-
-## 7.9 Funcionalidades Claves
-
-PromptVault ofrece un conjunto robusto de funcionalidades diseñadas para maximizar la productividad en la gestión y uso de prompts con inteligencia artificial.
-
-### 🎯 Funcionalidades Core
-
-#### 1️⃣ Gestión Completa de Prompts (CRUD)
-
-**Descripción:** Sistema integral para crear, leer, actualizar y eliminar prompts con versionado automático.
-
-| Acción | Características |
-|--------|----------------|
-| **Crear** | Título, contenido, etiquetas, visibilidad |
-| **Editar** | Guarda versión anterior automáticamente |
-| **Eliminar** | Soft delete con posibilidad de restaurar |
-| **Búsqueda** | Full-text en título/contenido + filtros |
-| **Versionado** | Historial completo de cambios con diff |
-
-**Código clave:**
-```php
-// app/Services/PromptService.php
-public function updatePrompt(Prompt $prompt, array $data): Prompt
-{
-    // Guarda versión anterior antes de actualizar
-    $this->versionRepository->crearVersion($prompt);
-    
-    return $this->promptRepository->update($prompt, $data);
-}
-```
-
-**Validaciones:**
-- Título: mínimo 5 caracteres, máximo 200
-- Contenido: mínimo 10 caracteres
-- Etiquetas: máximo 5 por prompt
-- Usuario solo puede editar sus propios prompts (via Policy)
-
----
-
-#### 2️⃣ Sistema Multi-Provider de IA
-
-**Descripción:** Integración simultánea con 3 proveedores de IA para máxima flexibilidad.
-
-| Provider | Modelo | Velocidad | Contexto |
-|----------|--------|-----------|----------|
-| **Claude** | Claude 3.5 Sonnet | ⭐⭐⭐ | 200K tokens |
-| **Gemini** | Gemini 1.5 Pro | ⭐⭐⭐⭐ | 1M tokens |
-| **Groq** | Llama 3.1 70B | ⭐⭐⭐⭐⭐ | 8K tokens |
-
-**Cambio dinámico:**
-```javascript
-// resources/js/chatbot.js
-Alpine.data('chatbot', () => ({
-    provider: 'claude',
-    changeProvider(newProvider) {
-        this.provider = newProvider;
-        // Actualiza UI sin recargar página
-    }
-}));
-```
-
-**Features:**
-- Selección de modelo sin recargar
-- Historial por proveedor
-- Comando: `php artisan check:models` para ver modelos disponibles
-
----
-
-#### 3️⃣ Sistema de Calificación Comunitario
-
-**Descripción:** Calificación de 1-5 estrellas con promedio ponderado y validación única por usuario.
-
-**Reglas de negocio:**
-- ✅ 1 calificación por usuario por prompt
-- ✅ Recalcula promedio automáticamente
-- ✅ No puedes calificar tus propios prompts
-- ✅ Editable (cambiar estrellas)
-
-**Tabla resumen:**
-
-| Estadística | Cálculo |
-|------------|---------|
-| **Promedio** | `SUM(estrellas) / COUNT(calificaciones)` |
-| **Total Calificaciones** | `COUNT(*)` |
-| **Distribución** | Histograma 1-5 estrellas |
-
-**Implementación:**
-```php
-// app/Services/CalificacionService.php
-public function calificar(Prompt $prompt, User $user, int $estrellas): Calificacion
-{
-    // Valida: no es propietario y estrellas 1-5
-    $this->validarCalificacion($prompt, $user, $estrellas);
-    
-    return Calificacion::updateOrCreate(
-        ['prompt_id' => $prompt->id, 'user_id' => $user->id],
-        ['estrellas' => $estrellas]
-    );
-}
-```
-
----
-
-#### 4️⃣ Sistema de Compartir con Permisos Granulares
-
-**Descripción:** Genera enlaces temporales o permanentes con control de acceso fino.
-
-**Tipos de permisos:**
-
-| Permiso | Usuario Puede |
-|---------|--------------|
-| **Lectura** | Ver prompt, copiar contenido |
-| **Edición** | Modificar prompt, ver versiones |
-| **Admin** | Editar + eliminar + compartir |
-
-**Opciones de expiración:**
-- 1 hora
-- 1 día
-- 7 días
-- 30 días
-- Sin expiración
-
-**Tabla BD:**
-```sql
-CREATE TABLE accesos_compartidos (
-    id BIGINT PRIMARY KEY,
-    prompt_id BIGINT,
-    user_id BIGINT,
-    email_compartido VARCHAR(255),
-    token VARCHAR(255) UNIQUE,
-    permiso ENUM('lectura', 'edicion'),
-    expira_en TIMESTAMP NULL,
-    created_at TIMESTAMP
-);
-```
-
-**Generación de enlace:**
-```php
-// app/Services/CompartirService.php
-public function generarAcceso(Prompt $prompt, string $email, string $permiso): string
-{
-    $token = Str::random(32);
-    
-    AccesoCompartido::create([
-        'prompt_id' => $prompt->id,
-        'email_compartido' => $email,
-        'token' => $token,
-        'permiso' => $permiso,
-        'expira_en' => now()->addDays(7),
-    ]);
-    
-    return route('compartidos.acceso', $token);
-}
-```
-
----
-
-#### 5️⃣ Control de Acceso con Policies
-
-**Descripción:** Autorización basada en Laravel Policies para cada acción del sistema.
-
-**Policies implementadas:**
-
-| Policy | Métodos | Validaciones |
-|--------|---------|--------------|
-| `PromptPolicy` | view, update, delete, share | Propietario o admin |
-| `ComentarioPolicy` | create, update, delete | Usuario autenticado |
-
-**Ejemplo de Policy:**
-```php
-// app/Policies/PromptPolicy.php
-class PromptPolicy
-{
-    public function update(User $user, Prompt $prompt): bool
-    {
-        // Solo propietario o admin
-        return $user->id === $prompt->user_id 
-            || $user->hasRole('admin');
-    }
-    
-    public function share(User $user, Prompt $prompt): bool
-    {
-        // Solo propietario puede compartir
-        return $user->id === $prompt->user_id;
-    }
-}
-```
-
-**Uso en Controlador:**
-```php
-public function update(Request $request, Prompt $prompt)
-{
-    $this->authorize('update', $prompt);
-    
-    // Usuario autorizado, procede...
-}
-```
-
----
-
-#### 6️⃣ Gestión de Usuarios y Roles
-
-**Descripción:** Sistema de roles jerárquico con permisos diferenciados.
-
-**Roles del sistema:**
-
-| Rol | Permisos |
-|-----|----------|
-| **Admin** | Acceso total, gestión usuarios, configuración |
-| **User** | CRUD prompts propios, chat IA, calificaciones |
-| **Guest** | Solo visualización de prompts públicos |
-
-**Tabla de permisos:**
-
-| Acción | Admin | User | Guest |
-|--------|-------|------|-------|
-| Ver prompts públicos | ✅ | ✅ | ✅ |
-| Crear prompt | ✅ | ✅ | ❌ |
-| Editar prompt propio | ✅ | ✅ | ❌ |
-| Editar prompt ajeno | ✅ | ❌ | ❌ |
-| Eliminar cualquier prompt | ✅ | ❌ | ❌ |
-| Usar chatbot IA | ✅ | ✅ | ❌ |
-| Ver panel admin | ✅ | ❌ | ❌ |
-| Gestionar usuarios | ✅ | ❌ | ❌ |
-
-**Middleware:**
-```php
-// routes/master-web.php
-Route::middleware(['auth', 'role:admin'])->group(function () {
-    Route::get('/admin/usuarios', [UsuarioController::class, 'index']);
-});
-```
-
----
-
-#### 7️⃣ Búsqueda Avanzada y Filtrado
-
-**Descripción:** Sistema de búsqueda full-text con múltiples filtros combinables.
-
-**Filtros disponibles:**
-
-| Filtro | Tipo | Opciones |
-|--------|------|----------|
-| **Texto** | Input | Busca en título + contenido |
-| **Etiquetas** | Multi-select | Tags existentes |
-| **Autor** | Dropdown | Todos los usuarios |
-| **Calificación** | Range | 1-5 estrellas |
-| **Fecha** | Date range | Desde - Hasta |
-| **Visibilidad** | Radio | Público / Privado / Todos |
-
-**Query Builder:**
-```php
-// app/Repositories/PromptRepository.php
-public function buscar(array $filtros): Collection
-{
-    return Prompt::query()
-        ->when($filtros['texto'] ?? null, function ($query, $texto) {
-            $query->where('titulo', 'LIKE', "%{$texto}%")
-                  ->orWhere('contenido', 'LIKE', "%{$texto}%");
-        })
-        ->when($filtros['etiquetas'] ?? null, function ($query, $etiquetas) {
-            $query->whereHas('etiquetas', function ($q) use ($etiquetas) {
-                $q->whereIn('id', $etiquetas);
-            });
-        })
-        ->when($filtros['calificacion_min'] ?? null, function ($query, $min) {
-            $query->withAvg('calificaciones', 'estrellas')
-                  ->having('calificaciones_avg_estrellas', '>=', $min);
-        })
-        ->paginate(15);
-}
-```
-
----
-
-#### 8️⃣ Gestión de Configuraciones Sistema
-
-**Descripción:** Panel administrativo para configurar parámetros globales del sistema.
-
-**Configuraciones disponibles:**
-
-| Categoría | Configuración | Tipo |
-|-----------|--------------|------|
-| **General** | Nombre aplicación | Text |
-| **General** | Modo mantenimiento | Boolean |
-| **APIs** | Claude API Key | Password |
-| **APIs** | Gemini API Key | Password |
-| **APIs** | Groq API Key | Password |
-| **Seguridad** | Timeout sesión | Number (minutos) |
-| **Backup** | Backup automático | Boolean |
-| **Cache** | Driver cache | Select (redis/file) |
-
-**Implementación:**
-```php
-// app/Models/AppSetting.php
-class AppSetting extends Model
-{
-    public static function get(string $key, $default = null)
-    {
-        return cache()->remember("setting.{$key}", 3600, function () use ($key, $default) {
-            return static::where('key', $key)->value('value') ?? $default;
-        });
-    }
-}
-```
-
-**Comando para verificar APIs:**
-```bash
-php artisan app:verify-ai-keys
-# Output: ✅ Claude: OK | ❌ Gemini: Invalid Key | ✅ Groq: OK
-```
-
----
-
-### 📊 Resumen de Funcionalidades
-
-| Funcionalidad | Estado | Cobertura Tests |
-|--------------|--------|----------------|
-| CRUD Prompts | ✅ Completo | 95% |
-| Multi-Provider IA | ✅ Completo | 90% |
-| Calificaciones | ✅ Completo | 92% |
-| Sistema Compartir | ✅ Completo | 88% |
-| Policies Autorización | ✅ Completo | 100% |
-| Gestión Usuarios/Roles | ✅ Completo | 85% |
-| Búsqueda Avanzada | ✅ Completo | 87% |
-| Configuraciones Admin | ✅ Completo | 80% |
-
----
-
-## 📦 Instalación
+### Ejecutar Aplicación
 
 ```bash
-git clone https://github.com/tu-usuario/promptvault.git
-cd promptvault
-composer setup
-cp .env.example .env
-php artisan migrate --seed
-npm install && npm run dev
-php artisan serve
+# Terminal 1: Iniciar backend
+npm run start --prefix backend
+
+# Terminal 2: Iniciar Expo
+npm start
+
+# Escanear código QR con Expo Go
 ```
+
+### Tareas Disponibles
+
+| Comando | Descripción |
+|---------|-------------|
+| `npm start` | Inicia el servidor de desarrollo Expo |
+| `npm run android` | Abre en emulador Android |
+| `npm run ios` | Abre en simulador iOS |
+| `npm run migrate` | Ejecuta migraciones de BD |
+| `npm run seed` | Carga datos de prueba |
+
+---
+
+## 📄 Licencia
+
+Este proyecto es parte de un trabajo académico y está disponible bajo licencia MIT.
+
+## 👥 Autores
+
+Desarrollado como proyecto final de la materia de Desarrollo de Aplicaciones Móviles.
+
+---
+
+**Última actualización:** Enero 2026
